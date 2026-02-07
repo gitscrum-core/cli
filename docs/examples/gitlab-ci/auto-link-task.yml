@@ -1,0 +1,47 @@
+# GitScrum - GitLab Auto Link Task
+#
+# Automatically links commits and MRs to GitScrum tasks.
+# Include in your .gitlab-ci.yml
+
+.gitscrum-setup:
+  before_script:
+    - curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+
+# Link commits on push
+link-commit:
+  extends: .gitscrum-setup
+  stage: .pre
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+  script:
+    - |
+      BRANCH="$CI_COMMIT_REF_NAME"
+      TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+      
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks update "$TASK_CODE" \
+          --add-commit "$CI_COMMIT_SHA" \
+          --note "Commit: ${CI_COMMIT_SHORT_SHA} - ${CI_COMMIT_MESSAGE:0:50}"
+        echo "✅ Linked commit to $TASK_CODE"
+      fi
+
+# Link MR on creation
+link-mr:
+  extends: .gitscrum-setup
+  stage: .pre
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_EVENT_TYPE == "open"
+  script:
+    - |
+      BRANCH="$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+      TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+      
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks pr "$TASK_CODE" \
+          --url "$CI_MERGE_REQUEST_URL" \
+          --title "$CI_MERGE_REQUEST_TITLE"
+        
+        # Add comment to MR with task link
+        echo "📋 **GitScrum Task:** [$TASK_CODE](https://app.gitscrum.com/.../tasks/$TASK_CODE)"
+      fi

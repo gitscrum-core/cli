@@ -1,0 +1,140 @@
+# GitScrum - Sprint Automation
+#
+# Automated sprint management:
+# - End-of-sprint summary
+# - Auto-move incomplete tasks to next sprint
+# - Velocity tracking
+#
+# Copy to: .github/workflows/gitscrum-sprint-auto.yml
+
+name: GitScrum Sprint Automation
+
+on:
+  schedule:
+    # Every Friday at 5pm UTC (end of sprint)
+    - cron: '0 17 * * 5'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'summary'
+        type: choice
+        options:
+          - summary
+          - close-sprint
+          - move-incomplete
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  sprint-summary:
+    name: Sprint Summary
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.action == 'summary'
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Generate Summary
+        run: |
+          echo "## 📊 End-of-Sprint Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Generated: $(date '+%Y-%m-%d %H:%M UTC')_" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Get sprint data
+          SPRINT=$(gitscrum sprints current --format json 2>/dev/null || echo '{}')
+          
+          if [ "$(echo "$SPRINT" | jq -r '.slug // empty')" = "" ]; then
+            echo "No active sprint found" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          
+          TITLE=$(echo "$SPRINT" | jq -r '.title')
+          PERCENTAGE=$(echo "$SPRINT" | jq -r '.stats.percentage // 0')
+          TOTAL=$(echo "$SPRINT" | jq -r '.stats.total_tasks // 0')
+          CLOSED=$(echo "$SPRINT" | jq -r '.stats.closed_tasks // 0')
+          POINTS=$(echo "$SPRINT" | jq -r '.stats.story_points // 0')
+          
+          echo "### $TITLE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Completion | ${PERCENTAGE}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tasks Completed | ${CLOSED}/${TOTAL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Story Points | ${POINTS} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Incomplete tasks
+          echo "### ⏳ Incomplete Tasks" >> $GITHUB_STEP_SUMMARY
+          INCOMPLETE=$((TOTAL - CLOSED))
+          if [ "$INCOMPLETE" -gt 0 ]; then
+            gitscrum tasks list \
+              --sprint current \
+              --status "backlog,todo,in-progress,review" \
+              --format json 2>/dev/null | \
+              jq -r '.data[] | "- [\(.code)] \(.title) (\(.workflow.title))"' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "_All tasks completed! 🎉_" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Top contributors
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🏆 Top Contributors" >> $GITHUB_STEP_SUMMARY
+          gitscrum sprints stats --contributors --format json 2>/dev/null | \
+            jq -r '.data[0:5][] | "- \(.name): \(.completed_tasks) tasks"' >> $GITHUB_STEP_SUMMARY 2>/dev/null || \
+            echo "_Unable to fetch contributors_" >> $GITHUB_STEP_SUMMARY
+
+      - name: Post to Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          SPRINT=$(gitscrum sprints current --format json 2>/dev/null || echo '{}')
+          TITLE=$(echo "$SPRINT" | jq -r '.title')
+          PERCENTAGE=$(echo "$SPRINT" | jq -r '.stats.percentage // 0')
+          TOTAL=$(echo "$SPRINT" | jq -r '.stats.total_tasks // 0')
+          CLOSED=$(echo "$SPRINT" | jq -r '.stats.closed_tasks // 0')
+          
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            -d "{
+              \"blocks\": [
+                {\"type\": \"header\", \"text\": {\"type\": \"plain_text\", \"text\": \"📊 Sprint Summary: $TITLE\"}},
+                {\"type\": \"section\", \"fields\": [
+                  {\"type\": \"mrkdwn\", \"text\": \"*Completion:*\n${PERCENTAGE}%\"},
+                  {\"type\": \"mrkdwn\", \"text\": \"*Tasks:*\n${CLOSED}/${TOTAL}\"}
+                ]}
+              ]
+            }"
+
+  move-incomplete:
+    name: Move Incomplete to Next Sprint
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'move-incomplete'
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Move Tasks
+        run: |
+          echo "## 🔄 Moving Incomplete Tasks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Get incomplete tasks from current sprint
+          TASKS=$(gitscrum tasks list \
+            --sprint current \
+            --status "backlog,todo,in-progress" \
+            --format json 2>/dev/null || echo '{"data":[]}')
+          
+          COUNT=$(echo "$TASKS" | jq '.data | length')
+          echo "Found $COUNT incomplete tasks" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Move each task
+          echo "$TASKS" | jq -r '.data[].code' | while read -r task; do
+            gitscrum tasks update "$task" --sprint "next" 2>/dev/null
+            echo "- Moved $task" >> $GITHUB_STEP_SUMMARY
+          done

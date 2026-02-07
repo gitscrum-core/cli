@@ -1,0 +1,17 @@
+# GitScrum Project Configuration - Minimal
+#
+# A minimal .gitscrum.yml for quick setup.
+# For all options, see: docs/examples/.gitscrum.yml
+
+version: "1"
+workspace: my-company
+project: my-project
+
+branch:
+  default_prefix: feature
+
+hooks:
+  prepend_task_code: true
+
+automation:
+  complete_on_merge: true

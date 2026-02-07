@@ -1,0 +1,120 @@
+# GitScrum - Blocker Alert
+#
+# Checks for blocker tasks and posts to Slack/Discord:
+# - Runs on schedule (every 2 hours during work hours)
+# - Can be triggered manually
+# - Posts to Slack via webhook
+#
+# Copy to: .github/workflows/gitscrum-blocker-alert.yml
+#
+# Required Secrets:
+#   GITSCRUM_ACCESS_TOKEN     - GitScrum API token
+#   SLACK_WEBHOOK_URL  - Slack incoming webhook (optional)
+#   DISCORD_WEBHOOK    - Discord webhook (optional)
+
+name: GitScrum Blocker Alert
+
+on:
+  schedule:
+    # Every 2 hours during work hours (9-18 UTC), weekdays
+    - cron: '0 9-18/2 * * 1-5'
+  workflow_dispatch:  # Manual trigger
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  check-blockers:
+    name: Check for Blockers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Get Blockers
+        id: blockers
+        run: |
+          BLOCKERS=$(gitscrum tasks list --filter blocker --format json 2>/dev/null || echo '{"data":[]}')
+          COUNT=$(echo "$BLOCKERS" | jq '.data | length')
+          
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "blockers=$BLOCKERS" >> $GITHUB_OUTPUT
+          
+          if [ "$COUNT" -gt 0 ]; then
+            echo "🚨 Found $COUNT blocker(s)"
+          else
+            echo "✅ No blockers"
+          fi
+
+      - name: Post to Slack
+        if: steps.blockers.outputs.count > 0 && env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          BLOCKERS='${{ steps.blockers.outputs.blockers }}'
+          
+          # Build Slack message
+          BLOCKS=$(echo "$BLOCKERS" | jq '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "🚨 Blocker Alert"}
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "There are \(.data | length) blocker task(s):"
+                }
+              }
+            ] + [
+              .data[] | {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*[\(.code)]* \(.title)\n👤 \(.assignee.name // "Unassigned")"
+                }
+              }
+            ]
+          }')
+          
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            -d "$BLOCKS"
+          
+          echo "✅ Posted to Slack"
+
+      - name: Post to Discord
+        if: steps.blockers.outputs.count > 0 && env.DISCORD_WEBHOOK != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          BLOCKERS='${{ steps.blockers.outputs.blockers }}'
+          
+          # Build Discord message
+          CONTENT="🚨 **Blocker Alert** - $(echo "$BLOCKERS" | jq '.data | length') task(s)"
+          EMBEDS=$(echo "$BLOCKERS" | jq '[
+            .data[] | {
+              "title": "[\(.code)] \(.title)",
+              "description": "Assignee: \(.assignee.name // "Unassigned")",
+              "color": 15158332
+            }
+          ]')
+          
+          PAYLOAD=$(jq -n --arg content "$CONTENT" --argjson embeds "$EMBEDS" \
+            '{"content": $content, "embeds": $embeds}')
+          
+          curl -X POST "$DISCORD_WEBHOOK" \
+            -H 'Content-type: application/json' \
+            -d "$PAYLOAD"
+          
+          echo "✅ Posted to Discord"
+
+      - name: Summary
+        if: steps.blockers.outputs.count > 0
+        run: |
+          echo "## 🚨 Blockers Found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.blockers.outputs.blockers }}' | jq -r \
+            '.data[] | "- **[\(.code)]** \(.title) - \(.assignee.name // "Unassigned")"' \
+            >> $GITHUB_STEP_SUMMARY

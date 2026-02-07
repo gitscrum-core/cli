@@ -1,0 +1,62 @@
+# GitScrum Project Configuration
+# https://gitscrum.com/docs/cli/project-config
+#
+# This file configures GitScrum CLI for this repository.
+# Commit it to version control so all team members use the same settings.
+
+version: "1"
+
+# Workspace and project association
+workspace: my-company     # Your GitScrum workspace slug
+project: my-project       # Optional: default project for this repo
+
+# Branch naming conventions
+branch:
+  default_prefix: feature           # Default prefix when creating branches
+  include_title: true               # Include task title in branch name
+  max_length: 50                    # Max branch name length
+  prefixes:                         # Map task type to branch prefix
+    feature: feature
+    bug: bugfix
+    hotfix: hotfix
+    chore: chore
+
+# Time tracking settings
+timer:
+  auto_start: false                 # Auto-start timer on branch checkout
+  auto_stop: false                  # Auto-stop timer when switching branches
+  min_duration: 1                   # Minimum duration to log (minutes)
+  round_to: 5                       # Round time to nearest N minutes (5, 15, 30)
+  remind_after: 4                   # Remind to stop after N hours of inactivity
+
+# Git hooks behavior
+hooks:
+  prepend_task_code: true           # Prepend task code to commit messages
+  commit_format: "[%s] %s"          # Format: [GS-123] commit message
+  validate_on_push: false           # Validate task exists before push
+  show_task_on_checkout: true       # Show task info when checking out branch
+
+# Team settings
+team:
+  default_assignee: ""              # Default assignee for new tasks
+  reviewers:                        # Default PR reviewers
+    # - teammate1
+    # - teammate2
+
+# Custom labels to apply automatically
+labels: []
+  # - cli
+  # - backend
+
+# Custom task code pattern (regex)
+# Default matches: GS-123, TK-456, PROJ-789, etc.
+# task_code_pattern: "[A-Z]{2,5}-[0-9]+"
+
+# Automation rules
+automation:
+  on_pr_open: in-progress           # Column to move task when PR is opened
+  on_pr_merge: done                 # Column to move task when PR is merged
+  on_pr_close: ""                   # Column on PR close (without merge)
+  on_deploy_staging: testing        # Column on staging deploy
+  on_deploy_prod: ""                # Column on production deploy
+  complete_on_merge: true           # Mark task complete when PR is merged

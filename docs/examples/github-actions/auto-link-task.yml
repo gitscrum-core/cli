@@ -1,0 +1,76 @@
+# GitScrum - Auto Link Task
+#
+# Automatically links commits and PRs to GitScrum tasks:
+# - Extracts task code from branch name
+# - Links PR URL to the task
+# - Records commit SHA in task history
+#
+# Copy to: .github/workflows/gitscrum-link-task.yml
+
+name: GitScrum Link Task
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+      - 'task/**'
+  pull_request:
+    types: [opened]
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  link-commit:
+    name: Link Commit to Task
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Extract Task & Link
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+          
+          if [ -z "$TASK_CODE" ]; then
+            echo "No task code in branch: $BRANCH"
+            exit 0
+          fi
+          
+          echo "📌 Linking commit to $TASK_CODE"
+          
+          gitscrum tasks update "$TASK_CODE" \
+            --add-commit "${{ github.sha }}" \
+            --note "Commit: ${{ github.event.head_commit.message }}"
+          
+          echo "✅ Linked ${{ github.sha }} to $TASK_CODE" >> $GITHUB_STEP_SUMMARY
+
+  link-pr:
+    name: Link PR to Task
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Extract Task & Link PR
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+          
+          if [ -z "$TASK_CODE" ]; then
+            echo "No task code in branch: $BRANCH"
+            exit 0
+          fi
+          
+          echo "📌 Linking PR to $TASK_CODE"
+          
+          gitscrum tasks pr "$TASK_CODE" \
+            --url "${{ github.event.pull_request.html_url }}" \
+            --title "${{ github.event.pull_request.title }}"
+          
+          echo "✅ Linked PR #${{ github.event.pull_request.number }} to $TASK_CODE" >> $GITHUB_STEP_SUMMARY

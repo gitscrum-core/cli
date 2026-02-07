@@ -1,0 +1,99 @@
+# GoReleaser configuration
+# https://goreleaser.com/customization/
+
+version: 2
+
+project_name: gitscrum
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: gitscrum
+    main: ./cmd/gitscrum
+    binary: gitscrum
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - completions/*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: gitscrum
+    repository:
+      owner: gitscrum-core
+      name: homebrew-tap
+    homepage: "https://gitscrum.com"
+    description: "GitScrum CLI - Project Management from your terminal"
+    license: "MIT"
+    install: |
+      bin.install "gitscrum"
+      bash_completion.install "completions/gitscrum.bash" => "gitscrum"
+      zsh_completion.install "completions/_gitscrum"
+      fish_completion.install "completions/gitscrum.fish"
+
+scoops:
+  - name: gitscrum
+    repository:
+      owner: gitscrum-core
+      name: scoop-bucket
+    homepage: "https://gitscrum.com"
+    description: "GitScrum CLI - Project Management from your terminal"
+    license: "MIT"
+
+nfpms:
+  - id: packages
+    package_name: gitscrum
+    vendor: GitScrum
+    homepage: "https://gitscrum.com"
+    maintainer: "GitScrum Team <support@gitscrum.com>"
+    description: "GitScrum CLI - Project Management from your terminal"
+    license: "MIT"
+    formats:
+      - deb
+      - rpm
+    contents:
+      - src: completions/gitscrum.bash
+        dst: /usr/share/bash-completion/completions/gitscrum
+      - src: completions/_gitscrum
+        dst: /usr/share/zsh/vendor-completions/_gitscrum
+      - src: completions/gitscrum.fish
+        dst: /usr/share/fish/vendor_completions.d/gitscrum.fish

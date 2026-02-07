@@ -1,0 +1,78 @@
+# GitScrum - Sprint Dashboard
+#
+# Posts daily sprint progress to GitHub:
+# - Sprint completion percentage
+# - Tasks completed vs remaining
+# - Blocker list
+# - Burndown status
+#
+# Copy to: .github/workflows/gitscrum-sprint-dashboard.yml
+
+name: GitScrum Sprint Dashboard
+
+on:
+  schedule:
+    # Every weekday at 9am UTC
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:  # Manual trigger
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  sprint-summary:
+    name: Generate Sprint Summary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: |
+          curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Generate Dashboard
+        run: |
+          echo "# 📊 Sprint Dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Generated: $(date '+%Y-%m-%d %H:%M UTC')_" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Get sprint data
+          SPRINT_JSON=$(gitscrum sprints current --format json 2>/dev/null || echo '{}')
+          
+          if [ "$(echo "$SPRINT_JSON" | jq -r '.slug // empty')" = "" ]; then
+            echo "⚠️ No active sprint found" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          
+          # Extract data
+          SPRINT_NAME=$(echo "$SPRINT_JSON" | jq -r '.title')
+          PERCENTAGE=$(echo "$SPRINT_JSON" | jq -r '.stats.percentage // 0')
+          TOTAL=$(echo "$SPRINT_JSON" | jq -r '.stats.total_tasks // 0')
+          CLOSED=$(echo "$SPRINT_JSON" | jq -r '.stats.closed_tasks // 0')
+          POINTS=$(echo "$SPRINT_JSON" | jq -r '.stats.story_points // 0')
+          
+          # Progress bar
+          FILLED=$((PERCENTAGE / 5))
+          EMPTY=$((20 - FILLED))
+          BAR=$(printf '█%.0s' $(seq 1 $FILLED 2>/dev/null) || echo "")$(printf '░%.0s' $(seq 1 $EMPTY 2>/dev/null) || echo "")
+          
+          echo "## $SPRINT_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Progress | $BAR ${PERCENTAGE}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tasks | $CLOSED / $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Story Points | $POINTS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Blockers
+          echo "## 🚨 Blockers" >> $GITHUB_STEP_SUMMARY
+          BLOCKERS=$(gitscrum tasks list --filter blocker --format json 2>/dev/null || echo '{"data":[]}')
+          BLOCKER_COUNT=$(echo "$BLOCKERS" | jq '.data | length')
+          
+          if [ "$BLOCKER_COUNT" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "$BLOCKERS" | jq -r '.data[] | "- **[\(.code)]** \(.title) - _\(.assignee.name // "Unassigned")_"' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "_No blockers! 🎉_" >> $GITHUB_STEP_SUMMARY
+          fi

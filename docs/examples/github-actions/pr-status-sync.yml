@@ -1,0 +1,129 @@
+# GitScrum - PR Status Sync
+#
+# Updates GitScrum task status based on PR lifecycle events:
+# - PR opened → Task moves to "In Progress"
+# - PR ready for review → Task moves to "Review"
+# - PR approved → Task moves to "Approved"
+# - PR merged → Task is completed
+# - PR closed (no merge) → Note added to task
+#
+# Copy to: .github/workflows/gitscrum-pr-sync.yml
+
+name: GitScrum PR Sync
+
+on:
+  pull_request:
+    types: [opened, closed, ready_for_review, converted_to_draft]
+  pull_request_review:
+    types: [submitted]
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  extract-task:
+    name: Extract Task Code
+    runs-on: ubuntu-latest
+    outputs:
+      task_code: ${{ steps.extract.outputs.task_code }}
+    steps:
+      - name: Extract Task Code from Branch
+        id: extract
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+          echo "task_code=$TASK_CODE" >> $GITHUB_OUTPUT
+          echo "Branch: $BRANCH → Task: $TASK_CODE"
+
+  on-pr-opened:
+    name: Move to In Progress
+    needs: extract-task
+    if: github.event.action == 'opened' && needs.extract-task.outputs.task_code != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+      
+      - name: Update Task
+        env:
+          TASK_CODE: ${{ needs.extract-task.outputs.task_code }}
+        run: |
+          gitscrum tasks move "$TASK_CODE" --column "in-progress"
+          gitscrum tasks update "$TASK_CODE" \
+            --note "PR opened: ${{ github.event.pull_request.html_url }}"
+          echo "✅ Task $TASK_CODE moved to In Progress"
+
+  on-pr-ready:
+    name: Move to Review
+    needs: extract-task
+    if: github.event.action == 'ready_for_review' && needs.extract-task.outputs.task_code != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+      
+      - name: Update Task
+        env:
+          TASK_CODE: ${{ needs.extract-task.outputs.task_code }}
+        run: |
+          gitscrum tasks move "$TASK_CODE" --column "review"
+          echo "✅ Task $TASK_CODE moved to Review"
+
+  on-pr-approved:
+    name: Move to Approved
+    needs: extract-task
+    if: |
+      github.event_name == 'pull_request_review' && 
+      github.event.review.state == 'approved' && 
+      needs.extract-task.outputs.task_code != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+      
+      - name: Update Task
+        env:
+          TASK_CODE: ${{ needs.extract-task.outputs.task_code }}
+        run: |
+          gitscrum tasks move "$TASK_CODE" --column "approved"
+          gitscrum tasks update "$TASK_CODE" \
+            --note "Approved by ${{ github.event.review.user.login }}"
+          echo "✅ Task $TASK_CODE approved"
+
+  on-pr-merged:
+    name: Complete Task
+    needs: extract-task
+    if: |
+      github.event.action == 'closed' && 
+      github.event.pull_request.merged && 
+      needs.extract-task.outputs.task_code != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+      
+      - name: Complete Task
+        env:
+          TASK_CODE: ${{ needs.extract-task.outputs.task_code }}
+        run: |
+          gitscrum tasks complete "$TASK_CODE"
+          echo "✅ Task $TASK_CODE completed!" >> $GITHUB_STEP_SUMMARY
+
+  on-pr-closed:
+    name: Note PR Closed
+    needs: extract-task
+    if: |
+      github.event.action == 'closed' && 
+      !github.event.pull_request.merged && 
+      needs.extract-task.outputs.task_code != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+      
+      - name: Add Note
+        env:
+          TASK_CODE: ${{ needs.extract-task.outputs.task_code }}
+        run: |
+          gitscrum tasks update "$TASK_CODE" \
+            --note "PR closed without merge: ${{ github.event.pull_request.html_url }}"

@@ -1,0 +1,65 @@
+# GitScrum - Bitbucket Pipeline Status Sync
+#
+# Updates task with build status.
+# Copy into your bitbucket-pipelines.yml
+
+image: alpine:latest
+
+definitions:
+  scripts:
+    - script: &install-cli |
+        apk add --no-cache curl bash grep
+        curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+    - script: &extract-task |
+        BRANCH="${BITBUCKET_BRANCH}"
+        TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+
+  steps:
+    - step: &build-passed
+        name: Mark Build Passed
+        script:
+          - *install-cli
+          - *extract-task
+          - |
+            if [ -n "$TASK_CODE" ]; then
+              gitscrum tasks update "$TASK_CODE" \
+                --remove-label "ci-failed" \
+                --add-label "ci-passed" \
+                --note "✅ Build passed: Pipeline #${BITBUCKET_BUILD_NUMBER}"
+              echo "✅ Updated $TASK_CODE with success status"
+            fi
+
+    - step: &build-failed
+        name: Mark Build Failed
+        script:
+          - *install-cli
+          - *extract-task
+          - |
+            if [ -n "$TASK_CODE" ]; then
+              gitscrum tasks update "$TASK_CODE" \
+                --remove-label "ci-passed" \
+                --add-label "ci-failed" \
+                --note "❌ Build failed: Pipeline #${BITBUCKET_BUILD_NUMBER}"
+              echo "❌ Updated $TASK_CODE with failure status"
+            fi
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: Build & Test
+          script:
+            - echo "Running tests..."
+            # Add your build/test commands here
+            # - npm test
+            # - go test ./...
+      - step:
+          <<: *build-passed
+          condition:
+            changesets:
+              includePaths:
+                - "**/*"
+
+  # After-script doesn't exist in Bitbucket, so use parallel steps
+  # with conditions for pass/fail handling

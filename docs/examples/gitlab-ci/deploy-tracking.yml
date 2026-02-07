@@ -1,0 +1,68 @@
+# GitScrum - GitLab Deploy Tracking
+#
+# Updates task status when deployments happen.
+# Include in your .gitlab-ci.yml
+
+.gitscrum-setup:
+  before_script:
+    - curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+
+# Staging deployment
+deploy-staging-sync:
+  extends: .gitscrum-setup
+  stage: deploy
+  environment:
+    name: staging
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      when: on_success
+  script:
+    - |
+      # Get task codes from recent commits
+      TASK_CODES=$(git log --format=%s -10 | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u)
+      
+      for task in $TASK_CODES; do
+        gitscrum tasks move "$task" --column "testing" 2>/dev/null || true
+        gitscrum tasks update "$task" \
+          --note "📦 Deployed to staging: $CI_ENVIRONMENT_URL" 2>/dev/null || true
+        echo "✅ $task → Testing"
+      done
+
+# Production deployment
+deploy-production-sync:
+  extends: .gitscrum-setup
+  stage: deploy
+  environment:
+    name: production
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^(main|master)$/
+      when: on_success
+  script:
+    - |
+      TASK_CODES=$(git log --format=%s -10 | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u)
+      
+      for task in $TASK_CODES; do
+        gitscrum tasks complete "$task" 2>/dev/null || true
+        gitscrum tasks update "$task" \
+          --note "🚀 Deployed to production" 2>/dev/null || true
+        echo "✅ $task completed (production)"
+      done
+
+# Rollback tracking
+deploy-rollback-sync:
+  extends: .gitscrum-setup
+  stage: deploy
+  rules:
+    - when: manual
+  script:
+    - |
+      BRANCH="$CI_COMMIT_REF_NAME"
+      TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+      
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks move "$TASK_CODE" --column "in-progress"
+        gitscrum tasks update "$TASK_CODE" \
+          --note "⚠️ Rollback performed" \
+          --add-label "rollback"
+      fi

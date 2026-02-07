@@ -1,0 +1,80 @@
+# GitScrum - Bitbucket Deploy Tracking
+#
+# Updates task status when deployments happen.
+# Copy into your bitbucket-pipelines.yml
+
+image: alpine:latest
+
+definitions:
+  scripts:
+    - script: &install-cli |
+        apk add --no-cache curl bash grep git
+        curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+
+pipelines:
+  branches:
+    develop:
+      - step:
+          name: Deploy to Staging
+          deployment: staging
+          script:
+            - echo "Deploying to staging..."
+            # Add your deployment commands here
+      - step:
+          name: Update Tasks - Staging
+          script:
+            - *install-cli
+            - |
+              # Get task codes from recent commits
+              TASK_CODES=$(git log --format=%s -10 | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u)
+              
+              for task in $TASK_CODES; do
+                gitscrum tasks move "$task" --column "testing" 2>/dev/null || true
+                gitscrum tasks update "$task" \
+                  --note "📦 Deployed to staging" 2>/dev/null || true
+                echo "✅ $task → Testing"
+              done
+
+    main:
+      - step:
+          name: Deploy to Production
+          deployment: production
+          trigger: manual
+          script:
+            - echo "Deploying to production..."
+            # Add your deployment commands here
+      - step:
+          name: Complete Tasks - Production
+          script:
+            - *install-cli
+            - |
+              TASK_CODES=$(git log --format=%s -10 | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u)
+              
+              for task in $TASK_CODES; do
+                gitscrum tasks complete "$task" 2>/dev/null || true
+                gitscrum tasks update "$task" \
+                  --note "🚀 Deployed to production" 2>/dev/null || true
+                echo "✅ $task completed (production)"
+              done
+
+    master:
+      - step:
+          name: Deploy to Production
+          deployment: production
+          trigger: manual
+          script:
+            - echo "Deploying to production..."
+      - step:
+          name: Complete Tasks - Production
+          script:
+            - *install-cli
+            - |
+              TASK_CODES=$(git log --format=%s -10 | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u)
+              
+              for task in $TASK_CODES; do
+                gitscrum tasks complete "$task" 2>/dev/null || true
+                gitscrum tasks update "$task" \
+                  --note "🚀 Deployed to production" 2>/dev/null || true
+                echo "✅ $task completed"
+              done

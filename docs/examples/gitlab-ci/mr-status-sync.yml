@@ -1,0 +1,84 @@
+# GitScrum - GitLab MR Status Sync
+#
+# Updates task status based on Merge Request lifecycle.
+# Include in your .gitlab-ci.yml:
+#   include:
+#     - local: '.gitlab/ci/mr-status-sync.yml'
+
+# Reusable setup
+.gitscrum-setup:
+  before_script:
+    - curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+
+.extract-task-code:
+  script:
+    - |
+      BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_REF_NAME}"
+      TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+      echo "TASK_CODE=$TASK_CODE" >> task.env
+  artifacts:
+    reports:
+      dotenv: task.env
+
+# On MR Created
+mr-opened:
+  extends: .gitscrum-setup
+  stage: .pre
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_EVENT_TYPE == "open"
+  script:
+    - !reference [.extract-task-code, script]
+    - |
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks pr "$TASK_CODE" \
+          --url "$CI_MERGE_REQUEST_URL" \
+          --title "$CI_MERGE_REQUEST_TITLE"
+        gitscrum tasks move "$TASK_CODE" --column "in-progress"
+        echo "✅ MR linked to $TASK_CODE, moved to In Progress"
+      fi
+
+# MR marked as Ready for Review
+mr-ready-for-review:
+  extends: .gitscrum-setup
+  stage: .pre
+  rules:
+    - if: $CI_MERGE_REQUEST_EVENT_TYPE == "update"
+      when: manual
+      allow_failure: true
+  script:
+    - !reference [.extract-task-code, script]
+    - |
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks move "$TASK_CODE" --column "review"
+        echo "✅ Task $TASK_CODE moved to Review"
+      fi
+
+# On MR Merged
+mr-merged:
+  extends: .gitscrum-setup
+  stage: .post
+  rules:
+    - if: $CI_MERGE_REQUEST_STATE == "merged"
+  script:
+    - !reference [.extract-task-code, script]
+    - |
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks complete "$TASK_CODE"
+        echo "✅ Task $TASK_CODE completed!"
+      fi
+
+# On MR Closed (without merge)
+mr-closed:
+  extends: .gitscrum-setup
+  stage: .post
+  rules:
+    - if: $CI_MERGE_REQUEST_STATE == "closed" && $CI_MERGE_REQUEST_MERGED_AT == null
+  script:
+    - !reference [.extract-task-code, script]
+    - |
+      if [ -n "$TASK_CODE" ]; then
+        gitscrum tasks move "$TASK_CODE" --column "backlog"
+        gitscrum tasks update "$TASK_CODE" --note "MR closed without merge"
+        echo "⚠️ Task $TASK_CODE moved back to Backlog"
+      fi

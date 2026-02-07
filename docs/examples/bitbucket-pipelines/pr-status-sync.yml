@@ -1,0 +1,68 @@
+# GitScrum - Bitbucket PR Status Sync
+#
+# Updates task status based on Pull Request lifecycle.
+# Copy into your bitbucket-pipelines.yml
+
+image: alpine:latest
+
+definitions:
+  scripts:
+    - script: &install-cli |
+        apk add --no-cache curl bash grep
+        curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+    - script: &extract-task |
+        BRANCH="${BITBUCKET_BRANCH}"
+        TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+        echo "Branch: $BRANCH → Task: $TASK_CODE"
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: Link PR & Update Status
+          script:
+            - *install-cli
+            - *extract-task
+            - |
+              if [ -n "$TASK_CODE" ]; then
+                # Link PR to task
+                gitscrum tasks pr "$TASK_CODE" \
+                  --url "https://bitbucket.org/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/pull-requests/${BITBUCKET_PR_ID}" \
+                  --title "$BITBUCKET_PR_TITLE"
+                
+                # Move to In Progress
+                gitscrum tasks move "$TASK_CODE" --column "in-progress"
+                
+                echo "✅ PR #${BITBUCKET_PR_ID} linked to $TASK_CODE"
+              fi
+
+  branches:
+    main:
+      - step:
+          name: Complete Task on Merge
+          script:
+            - *install-cli
+            - |
+              # Extract task from merge commit message
+              COMMIT_MSG=$(git log -1 --pretty=%B)
+              TASK_CODE=$(echo "$COMMIT_MSG" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+              
+              if [ -n "$TASK_CODE" ]; then
+                gitscrum tasks complete "$TASK_CODE"
+                echo "✅ Task $TASK_CODE completed!"
+              fi
+
+    master:
+      - step:
+          name: Complete Task on Merge
+          script:
+            - *install-cli
+            - |
+              COMMIT_MSG=$(git log -1 --pretty=%B)
+              TASK_CODE=$(echo "$COMMIT_MSG" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+              
+              if [ -n "$TASK_CODE" ]; then
+                gitscrum tasks complete "$TASK_CODE"
+                echo "✅ Task $TASK_CODE completed!"
+              fi

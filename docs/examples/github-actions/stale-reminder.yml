@@ -1,0 +1,113 @@
+# GitScrum - Stale Tasks Reminder
+#
+# Sends reminders for tasks that haven't been updated:
+# - Tasks in "In Progress" for > 3 days
+# - Tasks in "Review" for > 2 days
+# - Unassigned tasks in backlog
+#
+# Copy to: .github/workflows/gitscrum-stale-reminder.yml
+
+name: GitScrum Stale Reminder
+
+on:
+  schedule:
+    # Every weekday morning at 10am UTC
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch:
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  check-stale:
+    name: Check for Stale Tasks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Find Stale In-Progress Tasks
+        id: stale_progress
+        run: |
+          # Get tasks in progress for more than 3 days
+          THREE_DAYS_AGO=$(date -d "3 days ago" +%Y-%m-%d)
+          
+          STALE=$(gitscrum tasks list \
+            --status "in-progress" \
+            --updated-before "$THREE_DAYS_AGO" \
+            --format json 2>/dev/null || echo '{"data":[]}')
+          
+          COUNT=$(echo "$STALE" | jq '.data | length')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "tasks=$STALE" >> $GITHUB_OUTPUT
+          echo "Found $COUNT stale in-progress tasks"
+
+      - name: Find Stale Review Tasks
+        id: stale_review
+        run: |
+          # Get tasks in review for more than 2 days
+          TWO_DAYS_AGO=$(date -d "2 days ago" +%Y-%m-%d)
+          
+          STALE=$(gitscrum tasks list \
+            --status "review" \
+            --updated-before "$TWO_DAYS_AGO" \
+            --format json 2>/dev/null || echo '{"data":[]}')
+          
+          COUNT=$(echo "$STALE" | jq '.data | length')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "tasks=$STALE" >> $GITHUB_OUTPUT
+          echo "Found $COUNT stale review tasks"
+
+      - name: Find Unassigned Tasks
+        id: unassigned
+        run: |
+          UNASSIGNED=$(gitscrum tasks list \
+            --assignee "none" \
+            --status "backlog,todo" \
+            --format json 2>/dev/null || echo '{"data":[]}')
+          
+          COUNT=$(echo "$UNASSIGNED" | jq '.data | length')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "tasks=$UNASSIGNED" >> $GITHUB_OUTPUT
+          echo "Found $COUNT unassigned tasks"
+
+      - name: Post to Slack
+        if: |
+          (steps.stale_progress.outputs.count > 0 || 
+           steps.stale_review.outputs.count > 0 || 
+           steps.unassigned.outputs.count > 5) &&
+          env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          PAYLOAD='{
+            "blocks": [
+              {"type": "header", "text": {"type": "plain_text", "text": "⏰ Stale Tasks Reminder"}}'
+          
+          # Add stale in-progress
+          if [ "${{ steps.stale_progress.outputs.count }}" -gt 0 ]; then
+            TASKS=$(echo '${{ steps.stale_progress.outputs.tasks }}' | jq -r '.data[] | "• [\(.code)] \(.title) - \(.assignee.name // "Unassigned")"' | head -5)
+            PAYLOAD="$PAYLOAD"',{"type": "section", "text": {"type": "mrkdwn", "text": "*🐢 In Progress > 3 days:*\n'"$TASKS"'"}}'
+          fi
+          
+          # Add stale review
+          if [ "${{ steps.stale_review.outputs.count }}" -gt 0 ]; then
+            TASKS=$(echo '${{ steps.stale_review.outputs.tasks }}' | jq -r '.data[] | "• [\(.code)] \(.title)"' | head -5)
+            PAYLOAD="$PAYLOAD"',{"type": "section", "text": {"type": "mrkdwn", "text": "*👀 Awaiting Review > 2 days:*\n'"$TASKS"'"}}'
+          fi
+          
+          PAYLOAD="$PAYLOAD"']}'
+          
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            -d "$PAYLOAD"
+
+      - name: Summary
+        run: |
+          echo "## ⏰ Stale Tasks Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Category | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| In Progress > 3 days | ${{ steps.stale_progress.outputs.count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Review > 2 days | ${{ steps.stale_review.outputs.count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unassigned | ${{ steps.unassigned.outputs.count }} |" >> $GITHUB_STEP_SUMMARY

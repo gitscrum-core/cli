@@ -1,0 +1,89 @@
+# GitScrum - GitLab Sprint Report
+#
+# Generates sprint summaries on schedule.
+# Include in your .gitlab-ci.yml and configure schedule in Settings > CI/CD > Schedules
+
+.gitscrum-setup:
+  before_script:
+    - curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - apk add --no-cache jq || apt-get install -y jq || true
+
+# Daily sprint summary
+daily-summary:
+  extends: .gitscrum-setup
+  stage: .post
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_TYPE == "daily"
+  script:
+    - |
+      echo "📊 Daily Sprint Summary"
+      echo "========================"
+      echo ""
+      
+      SPRINT=$(gitscrum sprints current --format json)
+      TITLE=$(echo "$SPRINT" | jq -r '.title')
+      PCT=$(echo "$SPRINT" | jq -r '.stats.percentage // 0')
+      CLOSED=$(echo "$SPRINT" | jq -r '.stats.closed_tasks // 0')
+      TOTAL=$(echo "$SPRINT" | jq -r '.stats.total_tasks // 0')
+      
+      echo "Sprint: $TITLE"
+      echo "Progress: ${PCT}%"
+      echo "Tasks: ${CLOSED}/${TOTAL}"
+      echo ""
+      
+      echo "🚨 Blockers:"
+      gitscrum tasks list --filter blocker || echo "None"
+      echo ""
+      
+      echo "⏳ In Progress:"
+      gitscrum tasks list --status in-progress
+
+# Weekly velocity report
+weekly-report:
+  extends: .gitscrum-setup
+  stage: .post
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_TYPE == "weekly"
+  script:
+    - |
+      echo "📊 Weekly Sprint Report"
+      echo "========================"
+      echo ""
+      
+      gitscrum sprints current
+      echo ""
+      
+      echo "Velocity Trend:"
+      gitscrum sprints stats --velocity 2>/dev/null || echo "N/A"
+      echo ""
+      
+      echo "Team Contributions:"
+      gitscrum sprints stats --contributors 2>/dev/null || echo "N/A"
+
+# End of sprint report
+sprint-end:
+  extends: .gitscrum-setup
+  stage: .post
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_TYPE == "sprint-end"
+  script:
+    - |
+      echo "🏁 Sprint End Report"
+      echo "===================="
+      
+      SPRINT=$(gitscrum sprints current --format json)
+      
+      echo "Completed Tasks:"
+      gitscrum tasks list --status done --sprint current
+      echo ""
+      
+      echo "Incomplete Tasks:"
+      gitscrum tasks list --status "backlog,todo,in-progress" --sprint current
+      echo ""
+      
+      # Count incomplete
+      INCOMPLETE=$(gitscrum tasks list --status "backlog,todo,in-progress" --sprint current --format json | jq '.data | length')
+      if [ "$INCOMPLETE" -gt 0 ]; then
+        echo "⚠️ $INCOMPLETE tasks need to be moved to next sprint"
+      fi

@@ -1,0 +1,99 @@
+# GitScrum - Deployment Tracking
+#
+# Updates task status when deployments happen:
+# - On deploy to staging → Move tasks to "Testing"
+# - On deploy to production → Mark tasks as "Done"
+# - Adds deployment notes to tasks
+#
+# Copy to: .github/workflows/gitscrum-deploy-sync.yml
+
+name: GitScrum Deploy Sync
+
+on:
+  deployment:
+    # Triggered by deployment events
+  deployment_status:
+    # Triggered when deployment status changes
+  workflow_run:
+    # Can also trigger from other workflows
+    workflows: ["Deploy to Production", "Deploy to Staging"]
+    types: [completed]
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  track-staging:
+    name: Track Staging Deploy
+    if: |
+      (github.event.deployment.environment == 'staging' || 
+       github.event.deployment_status.environment == 'staging') &&
+      (github.event.deployment_status.state == 'success' || github.event_name == 'deployment')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Get Tasks in Deploy
+        id: tasks
+        run: |
+          # Get commits in this deployment
+          COMMITS=$(git log --oneline -10)
+          TASK_CODES=$(echo "$COMMITS" | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u | tr '\n' ' ')
+          echo "task_codes=$TASK_CODES" >> $GITHUB_OUTPUT
+          echo "Found tasks: $TASK_CODES"
+
+      - name: Move to Testing
+        run: |
+          for task in ${{ steps.tasks.outputs.task_codes }}; do
+            echo "Moving $task to Testing..."
+            gitscrum tasks move "$task" --column "testing" 2>/dev/null || true
+            gitscrum tasks update "$task" \
+              --note "Deployed to staging: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              2>/dev/null || true
+          done
+
+  track-production:
+    name: Track Production Deploy
+    if: |
+      (github.event.deployment.environment == 'production' || 
+       github.event.deployment_status.environment == 'production') &&
+      (github.event.deployment_status.state == 'success' || github.event_name == 'deployment')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Get Tasks in Deploy
+        id: tasks
+        run: |
+          COMMITS=$(git log --oneline -10)
+          TASK_CODES=$(echo "$COMMITS" | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u | tr '\n' ' ')
+          echo "task_codes=$TASK_CODES" >> $GITHUB_OUTPUT
+
+      - name: Complete Tasks
+        run: |
+          for task in ${{ steps.tasks.outputs.task_codes }}; do
+            echo "Completing $task..."
+            gitscrum tasks complete "$task" 2>/dev/null || true
+            gitscrum tasks update "$task" \
+              --note "🚀 Deployed to production" \
+              2>/dev/null || true
+          done
+          
+          echo "## 🚀 Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tasks completed:" >> $GITHUB_STEP_SUMMARY
+          for task in ${{ steps.tasks.outputs.task_codes }}; do
+            echo "- $task" >> $GITHUB_STEP_SUMMARY
+          done

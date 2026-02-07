@@ -1,0 +1,64 @@
+# GitScrum - Bitbucket Auto Link Task
+#
+# Automatically links commits to GitScrum tasks.
+# Copy into your bitbucket-pipelines.yml
+
+image: alpine:latest
+
+definitions:
+  scripts:
+    - script: &install-cli |
+        apk add --no-cache curl bash grep
+        curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+
+pipelines:
+  branches:
+    'feature/*':
+      - step:
+          name: Link Commit to Task
+          script:
+            - *install-cli
+            - |
+              BRANCH="${BITBUCKET_BRANCH}"
+              TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+              
+              if [ -n "$TASK_CODE" ]; then
+                gitscrum tasks update "$TASK_CODE" \
+                  --add-commit "$BITBUCKET_COMMIT" \
+                  --note "Commit: ${BITBUCKET_COMMIT:0:7}"
+                echo "✅ Linked commit to $TASK_CODE"
+              fi
+
+    'bugfix/*':
+      - step:
+          name: Link Commit to Task
+          script:
+            - *install-cli
+            - |
+              BRANCH="${BITBUCKET_BRANCH}"
+              TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+              
+              if [ -n "$TASK_CODE" ]; then
+                gitscrum tasks update "$TASK_CODE" \
+                  --add-commit "$BITBUCKET_COMMIT" \
+                  --note "Bugfix commit: ${BITBUCKET_COMMIT:0:7}"
+                echo "✅ Linked commit to $TASK_CODE"
+              fi
+
+    'hotfix/*':
+      - step:
+          name: Link Commit to Task
+          script:
+            - *install-cli
+            - |
+              BRANCH="${BITBUCKET_BRANCH}"
+              TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+              
+              if [ -n "$TASK_CODE" ]; then
+                gitscrum tasks update "$TASK_CODE" \
+                  --add-commit "$BITBUCKET_COMMIT" \
+                  --note "Hotfix commit: ${BITBUCKET_COMMIT:0:7}" \
+                  --add-label "hotfix"
+                echo "✅ Linked commit to $TASK_CODE"
+              fi

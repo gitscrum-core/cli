@@ -1,0 +1,100 @@
+# GitScrum - Create Task from Issue
+#
+# Automatically creates a GitScrum task when a GitHub issue is opened:
+# - Syncs issue title and description
+# - Maps GitHub labels to GitScrum labels
+# - Links the issue to the task
+# - Comments on the issue with task code
+#
+# Copy to: .github/workflows/gitscrum-issue-sync.yml
+
+name: GitScrum Issue Sync
+
+on:
+  issues:
+    types: [opened, labeled, assigned]
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+  GITSCRUM_PROJECT: ${{ vars.GITSCRUM_PROJECT }}
+
+jobs:
+  create-task:
+    name: Create Task from Issue
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Create Task
+        id: create
+        run: |
+          # Map GitHub labels to priority
+          LABELS='${{ toJson(github.event.issue.labels.*.name) }}'
+          PRIORITY="medium"
+          
+          if echo "$LABELS" | grep -qi "critical\|urgent"; then
+            PRIORITY="blocker"
+          elif echo "$LABELS" | grep -qi "high"; then
+            PRIORITY="high"
+          elif echo "$LABELS" | grep -qi "low"; then
+            PRIORITY="low"
+          fi
+          
+          # Determine task type from labels
+          TYPE="task"
+          if echo "$LABELS" | grep -qi "bug"; then
+            TYPE="bug"
+          elif echo "$LABELS" | grep -qi "feature\|enhancement"; then
+            TYPE="feature"
+          fi
+          
+          # Create task
+          RESULT=$(gitscrum tasks create \
+            --title "${{ github.event.issue.title }}" \
+            --description "${{ github.event.issue.body }}" \
+            --project "$GITSCRUM_PROJECT" \
+            --priority "$PRIORITY" \
+            --type "$TYPE" \
+            --format json)
+          
+          TASK_CODE=$(echo "$RESULT" | jq -r '.code')
+          echo "task_code=$TASK_CODE" >> $GITHUB_OUTPUT
+          echo "✅ Created task: $TASK_CODE"
+
+      - name: Comment on Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const taskCode = '${{ steps.create.outputs.task_code }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `📋 **GitScrum Task Created:** \`${taskCode}\`\n\nThis issue is now tracked in GitScrum. Updates will sync automatically.`
+            });
+
+  sync-assignee:
+    name: Sync Assignee
+    if: github.event.action == 'assigned'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Find Task & Update Assignee
+        run: |
+          # Search for task linked to this issue
+          ISSUE_URL="${{ github.event.issue.html_url }}"
+          
+          # Try to find task by issue URL or title
+          TASK=$(gitscrum tasks list \
+            --search "${{ github.event.issue.title }}" \
+            --format json 2>/dev/null | jq -r '.data[0].code // empty')
+          
+          if [ -n "$TASK" ]; then
+            ASSIGNEE="${{ github.event.assignee.login }}"
+            gitscrum tasks update "$TASK" --assignee "$ASSIGNEE" 2>/dev/null || true
+            echo "✅ Updated assignee on $TASK"
+          fi

@@ -1,0 +1,131 @@
+# GitScrum - Release Notes
+#
+# Auto-generate release notes from completed tasks:
+# - Triggered on release/tag creation
+# - Groups tasks by type (feature, bugfix, etc)
+# - Updates GitHub release description
+#
+# Copy to: .github/workflows/gitscrum-release-notes.yml
+
+name: GitScrum Release Notes
+
+on:
+  release:
+    types: [created]
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  generate-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Get Previous Tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
+      - name: Extract Tasks from Commits
+        id: tasks
+        run: |
+          if [ -n "${{ steps.prev_tag.outputs.prev_tag }}" ]; then
+            COMMITS=$(git log ${{ steps.prev_tag.outputs.prev_tag }}..HEAD --oneline)
+          else
+            COMMITS=$(git log --oneline -50)
+          fi
+          
+          # Extract unique task codes
+          TASK_CODES=$(echo "$COMMITS" | grep -oE '[A-Z]{2,5}-[0-9]+' | sort -u | tr '\n' ' ')
+          echo "task_codes=$TASK_CODES" >> $GITHUB_OUTPUT
+          echo "Found tasks: $TASK_CODES"
+
+      - name: Generate Notes
+        id: notes
+        run: |
+          NOTES_FILE=$(mktemp)
+          
+          echo "## What's Changed" >> $NOTES_FILE
+          echo "" >> $NOTES_FILE
+          
+          # Features
+          echo "### ✨ Features" >> $NOTES_FILE
+          FOUND_FEATURES=false
+          
+          for task in ${{ steps.tasks.outputs.task_codes }}; do
+            TASK_JSON=$(gitscrum tasks view "$task" --format json 2>/dev/null || echo '{}')
+            TYPE=$(echo "$TASK_JSON" | jq -r '.type.name // empty' | tr '[:upper:]' '[:lower:]')
+            TITLE=$(echo "$TASK_JSON" | jq -r '.title // empty')
+            
+            if [ "$TYPE" = "feature" ] || [ "$TYPE" = "story" ]; then
+              echo "- **[$task]** $TITLE" >> $NOTES_FILE
+              FOUND_FEATURES=true
+            fi
+          done
+          
+          if [ "$FOUND_FEATURES" = false ]; then
+            echo "_No features in this release_" >> $NOTES_FILE
+          fi
+          
+          echo "" >> $NOTES_FILE
+          
+          # Bug Fixes
+          echo "### 🐛 Bug Fixes" >> $NOTES_FILE
+          FOUND_BUGS=false
+          
+          for task in ${{ steps.tasks.outputs.task_codes }}; do
+            TASK_JSON=$(gitscrum tasks view "$task" --format json 2>/dev/null || echo '{}')
+            TYPE=$(echo "$TASK_JSON" | jq -r '.type.name // empty' | tr '[:upper:]' '[:lower:]')
+            TITLE=$(echo "$TASK_JSON" | jq -r '.title // empty')
+            
+            if [ "$TYPE" = "bug" ] || [ "$TYPE" = "bugfix" ]; then
+              echo "- **[$task]** $TITLE" >> $NOTES_FILE
+              FOUND_BUGS=true
+            fi
+          done
+          
+          if [ "$FOUND_BUGS" = false ]; then
+            echo "_No bug fixes in this release_" >> $NOTES_FILE
+          fi
+          
+          echo "" >> $NOTES_FILE
+          echo "### 📋 All Tasks" >> $NOTES_FILE
+          
+          for task in ${{ steps.tasks.outputs.task_codes }}; do
+            TASK_JSON=$(gitscrum tasks view "$task" --format json 2>/dev/null || echo '{}')
+            TITLE=$(echo "$TASK_JSON" | jq -r '.title // empty')
+            if [ -n "$TITLE" ]; then
+              echo "- [$task] $TITLE" >> $NOTES_FILE
+            fi
+          done
+          
+          cat $NOTES_FILE
+          echo "notes_file=$NOTES_FILE" >> $GITHUB_OUTPUT
+
+      - name: Update Release
+        if: github.event_name == 'release'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const notes = fs.readFileSync('${{ steps.notes.outputs.notes_file }}', 'utf8');
+            
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id,
+              body: notes
+            });

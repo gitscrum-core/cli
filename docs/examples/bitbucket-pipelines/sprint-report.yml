@@ -1,0 +1,87 @@
+# GitScrum - Bitbucket Sprint Report
+#
+# Generates sprint summaries on schedule.
+# Configure schedule in Repository Settings > Pipelines > Schedules
+# Copy into your bitbucket-pipelines.yml
+
+image: alpine:latest
+
+definitions:
+  scripts:
+    - script: &install-cli |
+        apk add --no-cache curl bash jq
+        curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+
+pipelines:
+  custom:
+    daily-report:
+      - step:
+          name: Daily Sprint Summary
+          script:
+            - *install-cli
+            - |
+              echo "📊 Daily Sprint Summary"
+              echo "========================"
+              echo ""
+              
+              # Sprint info
+              SPRINT=$(gitscrum sprints current --format json 2>/dev/null || echo '{}')
+              TITLE=$(echo "$SPRINT" | jq -r '.title // "N/A"')
+              PCT=$(echo "$SPRINT" | jq -r '.stats.percentage // 0')
+              CLOSED=$(echo "$SPRINT" | jq -r '.stats.closed_tasks // 0')
+              TOTAL=$(echo "$SPRINT" | jq -r '.stats.total_tasks // 0')
+              
+              echo "Sprint: $TITLE"
+              echo "Progress: ${PCT}%"
+              echo "Tasks: ${CLOSED}/${TOTAL}"
+              echo ""
+              
+              echo "🚨 Blockers:"
+              gitscrum tasks list --filter blocker || echo "None"
+              echo ""
+              
+              echo "⏳ In Progress:"
+              gitscrum tasks list --status in-progress
+
+    weekly-report:
+      - step:
+          name: Weekly Sprint Report
+          script:
+            - *install-cli
+            - |
+              echo "📊 Weekly Sprint Report"
+              echo "========================"
+              echo ""
+              
+              gitscrum sprints current
+              echo ""
+              
+              echo "Velocity:"
+              gitscrum sprints stats --velocity 2>/dev/null || echo "N/A"
+              echo ""
+              
+              echo "This week's completed:"
+              gitscrum tasks list --status done --updated-after "$(date -d '7 days ago' +%Y-%m-%d)" 2>/dev/null || \
+              gitscrum tasks list --status done
+
+    check-blockers:
+      - step:
+          name: Check for Blockers
+          script:
+            - *install-cli
+            - |
+              BLOCKERS=$(gitscrum tasks list --filter blocker --format json 2>/dev/null | jq '.data | length' || echo "0")
+              
+              if [ "$BLOCKERS" -gt 0 ]; then
+                echo "⚠️ Found $BLOCKERS blocker tasks!"
+                gitscrum tasks list --filter blocker
+                exit 1  # Fail pipeline to get attention
+              else
+                echo "✅ No blockers found"
+              fi
+
+  # Schedule configuration (set via Bitbucket UI):
+  # - daily-report: Every weekday at 9am
+  # - weekly-report: Every Friday at 5pm
+  # - check-blockers: Every 4 hours

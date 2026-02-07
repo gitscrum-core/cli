@@ -1,0 +1,124 @@
+# GitScrum - CI Status Sync
+#
+# Syncs CI/CD pipeline status to tasks:
+# - Updates task on build failure
+# - Adds test results to task
+# - Labels tasks with CI status
+#
+# Copy to: .github/workflows/gitscrum-ci-status.yml
+
+name: GitScrum CI Status
+
+on:
+  workflow_run:
+    workflows: ["CI", "Tests", "Build"]
+    types: [completed]
+  check_suite:
+    types: [completed]
+
+env:
+  GITSCRUM_ACCESS_TOKEN: ${{ secrets.GITSCRUM_ACCESS_TOKEN }}
+
+jobs:
+  sync-status:
+    name: Sync CI Status to Task
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GitScrum CLI
+        run: curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | sh
+
+      - name: Extract Task Code
+        id: extract
+        run: |
+          if [ -n "${{ github.event.workflow_run.head_branch }}" ]; then
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+          else
+            BRANCH="${{ github.event.check_suite.head_branch }}"
+          fi
+          
+          TASK_CODE=$(echo "$BRANCH" | grep -oE '[A-Z]{2,5}-[0-9]+' | head -1)
+          echo "task_code=$TASK_CODE" >> $GITHUB_OUTPUT
+          echo "Branch: $BRANCH → Task: $TASK_CODE"
+
+      - name: Get Run Status
+        id: status
+        run: |
+          if [ -n "${{ github.event.workflow_run.conclusion }}" ]; then
+            STATUS="${{ github.event.workflow_run.conclusion }}"
+            RUN_URL="${{ github.event.workflow_run.html_url }}"
+            WORKFLOW="${{ github.event.workflow_run.name }}"
+          else
+            STATUS="${{ github.event.check_suite.conclusion }}"
+            RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions"
+            WORKFLOW="Check Suite"
+          fi
+          
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "url=$RUN_URL" >> $GITHUB_OUTPUT
+          echo "workflow=$WORKFLOW" >> $GITHUB_OUTPUT
+
+      - name: Update Task - Success
+        if: steps.extract.outputs.task_code != '' && steps.status.outputs.status == 'success'
+        run: |
+          TASK="${{ steps.extract.outputs.task_code }}"
+          
+          # Remove failure label if exists
+          gitscrum tasks update "$TASK" --remove-label "ci-failed" 2>/dev/null || true
+          
+          # Add success note
+          gitscrum tasks update "$TASK" \
+            --note "✅ ${{ steps.status.outputs.workflow }} passed" \
+            --add-label "ci-passed" \
+            2>/dev/null || true
+          
+          echo "✅ Updated $TASK with CI success"
+
+      - name: Update Task - Failure
+        if: steps.extract.outputs.task_code != '' && steps.status.outputs.status == 'failure'
+        run: |
+          TASK="${{ steps.extract.outputs.task_code }}"
+          
+          # Add failure label
+          gitscrum tasks update "$TASK" \
+            --add-label "ci-failed" \
+            --remove-label "ci-passed" \
+            --note "❌ ${{ steps.status.outputs.workflow }} failed: ${{ steps.status.outputs.url }}" \
+            2>/dev/null || true
+          
+          echo "❌ Updated $TASK with CI failure"
+
+      - name: Notify on Failure (Optional)
+        if: |
+          steps.extract.outputs.task_code != '' && 
+          steps.status.outputs.status == 'failure' &&
+          env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          TASK="${{ steps.extract.outputs.task_code }}"
+          
+          # Get task details
+          TASK_JSON=$(gitscrum tasks view "$TASK" --format json 2>/dev/null || echo '{}')
+          ASSIGNEE=$(echo "$TASK_JSON" | jq -r '.assignee.name // "Unassigned"')
+          TITLE=$(echo "$TASK_JSON" | jq -r '.title // "Unknown"')
+          
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            -d "{
+              \"text\": \"❌ CI Failed for [$TASK] $TITLE\",
+              \"attachments\": [{
+                \"color\": \"danger\",
+                \"fields\": [
+                  {\"title\": \"Workflow\", \"value\": \"${{ steps.status.outputs.workflow }}\", \"short\": true},
+                  {\"title\": \"Assignee\", \"value\": \"$ASSIGNEE\", \"short\": true}
+                ],
+                \"actions\": [{
+                  \"type\": \"button\",
+                  \"text\": \"View Run\",
+                  \"url\": \"${{ steps.status.outputs.url }}\"
+                }]
+              }]
+            }"
