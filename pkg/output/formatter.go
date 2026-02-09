@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
-	"text/tabwriter"
 
-	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 )
 
 // Format represents output format type
@@ -54,7 +52,7 @@ func NewFormatter(format Format) Formatter {
 	}
 }
 
-// TableFormatter outputs data as colored tables
+// TableFormatter outputs data as beautiful PTerm boxed tables
 type TableFormatter struct {
 	Writer io.Writer
 }
@@ -64,37 +62,38 @@ func (f *TableFormatter) Print(data interface{}) error {
 }
 
 func (f *TableFormatter) PrintTable(headers []string, rows [][]string) error {
-	w := tabwriter.NewWriter(f.Writer, 0, 0, 2, ' ', 0)
-	
-	// Print header with bold
-	boldHeader := make([]string, len(headers))
-	for i, h := range headers {
-		boldHeader[i] = color.New(color.Bold).Sprint(h)
-	}
-	fmt.Fprintln(w, strings.Join(boldHeader, "\t"))
-	
-	// Print rows
+	// Create table data with headers
+	tableData := pterm.TableData{}
+	tableData = append(tableData, headers)
 	for _, row := range rows {
-		fmt.Fprintln(w, strings.Join(row, "\t"))
+		tableData = append(tableData, row)
 	}
-	
-	return w.Flush()
+
+	// Create beautiful boxed table
+	pterm.DefaultTable.
+		WithHasHeader(true).
+		WithBoxed(true).
+		WithHeaderStyle(pterm.NewStyle(pterm.FgCyan, pterm.Bold)).
+		WithData(tableData).
+		Render()
+
+	return nil
 }
 
 func (f *TableFormatter) PrintSuccess(msg string) {
-	color.Green("✓ %s", msg)
+	pterm.Success.Println(msg)
 }
 
 func (f *TableFormatter) PrintError(msg string) {
-	color.Red("✗ %s", msg)
+	pterm.Error.Println(msg)
 }
 
 func (f *TableFormatter) PrintWarning(msg string) {
-	color.Yellow("⚠ %s", msg)
+	pterm.Warning.Println(msg)
 }
 
 func (f *TableFormatter) PrintInfo(msg string) {
-	color.Cyan("ℹ %s", msg)
+	pterm.Info.Println(msg)
 }
 
 // JSONFormatter outputs data as JSON

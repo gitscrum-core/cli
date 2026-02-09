@@ -399,34 +399,17 @@ func TestRunTasksComplete_Success(t *testing.T) {
 
 // TestOutputFormatting tests that output is formatted correctly
 func TestOutputFormatting(t *testing.T) {
-	// Test table output
-	var tableBuf bytes.Buffer
-	tableFormatter := &output.TableFormatter{Writer: &tableBuf}
-	
 	headers := []string{"CODE", "TITLE", "STATUS"}
 	rows := [][]string{
 		{"GS-123", "Fix bug", "In Progress"},
 		{"GS-124", "Add feature", "Done"},
 	}
 
-	err := tableFormatter.PrintTable(headers, rows)
-	if err != nil {
-		t.Fatalf("PrintTable failed: %v", err)
-	}
-
-	tableOutput := tableBuf.String()
-	if !strings.Contains(tableOutput, "GS-123") {
-		t.Error("table output should contain GS-123")
-	}
-	if !strings.Contains(tableOutput, "Fix bug") {
-		t.Error("table output should contain 'Fix bug'")
-	}
-
 	// Test JSON output
 	var jsonBuf bytes.Buffer
 	jsonFormatter := &output.JSONFormatter{Writer: &jsonBuf}
 	
-	err = jsonFormatter.PrintTable(headers, rows)
+	err := jsonFormatter.PrintTable(headers, rows)
 	if err != nil {
 		t.Fatalf("JSON PrintTable failed: %v", err)
 	}

@@ -7,8 +7,10 @@ import (
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/auth"
 	"github.com/gitscrum-core/cli/pkg/config"
+	clierrors "github.com/gitscrum-core/cli/pkg/errors"
 	"github.com/gitscrum-core/cli/pkg/git"
 	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/services"
 )
 
 // Factory holds all dependencies for commands
@@ -32,6 +34,10 @@ type Factory struct {
 	gitOnce       sync.Once
 	gitContext    *git.Context
 	gitErr        error
+
+	// Services layer
+	servicesOnce  sync.Once
+	servicesValue *services.Services
 }
 
 // New creates a new Factory with defaults
@@ -94,12 +100,55 @@ func (f *Factory) Formatter() output.Formatter {
 func (f *Factory) RequireAuth() error {
 	token, err := f.AuthToken()
 	if err != nil {
+		if err == auth.ErrTokenExpired {
+			return clierrors.NewWithSuggestion(
+				"Your session has expired",
+				"Run 'gitscrum auth login' to re-authenticate",
+			)
+		}
 		return err
 	}
 	if token == nil || token.AccessToken == "" {
-		return auth.ErrNotAuthenticated
+		return clierrors.ErrNotAuthenticated
 	}
 	return nil
+}
+
+// RequireWorkspace ensures a workspace is configured and returns its slug
+func (f *Factory) RequireWorkspace() (string, error) {
+	workspace, err := f.CurrentWorkspace()
+	if err != nil {
+		return "", err
+	}
+	if workspace == "" {
+		return "", clierrors.ErrNoWorkspace
+	}
+	return workspace, nil
+}
+
+// RequireProject ensures a project is configured and returns its slug
+func (f *Factory) RequireProject() (string, error) {
+	project, err := f.CurrentProject()
+	if err != nil {
+		return "", err
+	}
+	if project == "" {
+		return "", clierrors.ErrNoProject
+	}
+	return project, nil
+}
+
+// RequireWorkspaceAndProject ensures both workspace and project are configured
+func (f *Factory) RequireWorkspaceAndProject() (string, string, error) {
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		return "", "", err
+	}
+	project, err := f.RequireProject()
+	if err != nil {
+		return "", "", err
+	}
+	return workspace, project, nil
 }
 
 // CurrentWorkspace returns the workspace from flag or config
@@ -128,3 +177,16 @@ func (f *Factory) IsAuthenticated() bool {
 	}
 	return token != nil && token.AccessToken != ""
 }
+
+// Services returns the service layer (lazy loaded)
+func (f *Factory) Services() *services.Services {
+	f.servicesOnce.Do(func() {
+		client, err := f.APIClient()
+		if err != nil {
+			return
+		}
+		f.servicesValue = services.New(client)
+	})
+	return f.servicesValue
+}
+

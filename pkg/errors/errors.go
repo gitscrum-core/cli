@@ -4,6 +4,7 @@ package errors
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/fatih/color"
@@ -12,8 +13,8 @@ import (
 // Common error types
 var (
 	ErrNotAuthenticated = &CLIError{
-		Message:    "You are not logged in",
-		Suggestion: "Run 'gitscrum auth login' to authenticate",
+		Message:    "You're not logged in yet",
+		Suggestion: "Run 'gitscrum auth login' to get started",
 		Code:       "AUTH_REQUIRED",
 	}
 
@@ -37,7 +38,7 @@ var (
 
 	ErrNoTaskCode = &CLIError{
 		Message:    "Could not detect task code from branch",
-		Suggestion: "Specify the task code explicitly, e.g. 'gitscrum tasks view GS-123'",
+		Suggestion: "Specify the task code explicitly, e.g. 'gitscrum tasks view a1b2c3d4'",
 		Code:       "NO_TASK_CODE",
 	}
 )
@@ -71,11 +72,10 @@ func (e *CLIError) WithCause(err error) *CLIError {
 // Print displays the error in a user-friendly format
 func (e *CLIError) Print() {
 	red := color.New(color.FgRed, color.Bold)
-	yellow := color.New(color.FgYellow)
-
-	red.Printf("Error: %s\n", e.Message)
+	red.Fprintf(os.Stderr, "Error: %s\n", e.Message)
 	if e.Suggestion != "" {
-		yellow.Printf("Hint: %s\n", e.Suggestion)
+		yellow := color.New(color.FgYellow)
+		yellow.Fprintf(os.Stderr, "  Suggestion: %s\n", e.Suggestion)
 	}
 }
 
@@ -194,9 +194,9 @@ func NewWithSuggestion(message, suggestion string) *CLIError {
 func FormatError(err error) string {
 	if cliErr, ok := err.(*CLIError); ok {
 		if cliErr.Suggestion != "" {
-			return fmt.Sprintf("Error: %s\nHint: %s", cliErr.Message, cliErr.Suggestion)
+			return fmt.Sprintf("%s\n  %s", cliErr.Message, cliErr.Suggestion)
 		}
-		return fmt.Sprintf("Error: %s", cliErr.Message)
+		return cliErr.Message
 	}
-	return fmt.Sprintf("Error: %s", err.Error())
+	return err.Error()
 }

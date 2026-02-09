@@ -2,9 +2,37 @@
 package output
 
 import (
+	"regexp"
 	"strings"
 	"time"
 )
+
+// StripHTML removes HTML tags and converts to plain text for terminal display
+func StripHTML(html string) string {
+	if html == "" {
+		return ""
+	}
+	// Replace <br>, <br/>, <br /> with newlines
+	brRe := regexp.MustCompile(`(?i)<br\s*/?>`)
+	html = brRe.ReplaceAllString(html, "\n")
+	// Replace </p>, </div>, </li> with newlines
+	blockRe := regexp.MustCompile(`(?i)</(?:p|div|li|h[1-6])>`)
+	html = blockRe.ReplaceAllString(html, "\n")
+	// Strip all remaining HTML tags
+	tagRe := regexp.MustCompile(`<[^>]*>`)
+	html = tagRe.ReplaceAllString(html, "")
+	// Decode common HTML entities
+	html = strings.ReplaceAll(html, "&amp;", "&")
+	html = strings.ReplaceAll(html, "&lt;", "<")
+	html = strings.ReplaceAll(html, "&gt;", ">")
+	html = strings.ReplaceAll(html, "&quot;", "\"")
+	html = strings.ReplaceAll(html, "&#39;", "'")
+	html = strings.ReplaceAll(html, "&nbsp;", " ")
+	// Collapse multiple blank lines
+	multiNewline := regexp.MustCompile(`\n{3,}`)
+	html = multiNewline.ReplaceAllString(html, "\n\n")
+	return strings.TrimSpace(html)
+}
 
 // StatusIcon returns a text-based status icon for display
 func StatusIcon(status string) string {

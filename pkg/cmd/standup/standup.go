@@ -3,93 +3,34 @@ package standup
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
-// NewCmdStandup creates the standup command group
 func NewCmdStandup(f *factory.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "standup",
-		Short: "Daily standup summary",
-		Long: `View and create daily standup reports.
-
-Without a subcommand, shows your standup summary (yesterday, today, blockers).`,
+		Use:     "standup",
+		Short:   "Daily standup summary",
+		Long:    "View and create daily standup reports.\n\nWithout a subcommand, shows your standup summary (yesterday, today, blockers).",
 		Aliases: []string{"daily", "stand"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStandupSummary(f)
 		},
 	}
-
 	cmd.AddCommand(NewCmdStandupCompleted(f))
 	cmd.AddCommand(NewCmdStandupBlockers(f))
 	cmd.AddCommand(NewCmdStandupTeam(f))
 	cmd.AddCommand(NewCmdStandupDigest(f))
-
 	return cmd
 }
 
-func runStandupSummary(f *factory.Factory) error {
-	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  Run 'gitscrum auth login' to authenticate")
-		return nil
-	}
-
-	workspace, _ := f.CurrentWorkspace()
-	project, _ := f.CurrentProject()
-
-	if workspace == "" {
-		return fmt.Errorf("workspace required. Use -w flag or set default")
-	}
-
-	client, err := f.APIClient()
-	if err != nil {
-		return err
-	}
-
-	today := time.Now().Format("2006-01-02")
-	path := fmt.Sprintf("/companies/standup/summary?date=%s", today)
-	if project != "" {
-		path += "&project_slug=" + project
-	}
-
-	resp, err := client.Get(path)
-	if err != nil {
-		return err
-	}
-
-	var result struct {
-		Data []Standup `json:"data"`
-	}
-	if err := api.DecodeResponse(resp, &result); err != nil {
-		return err
-	}
-
-	fmt.Printf("DAILY STANDUP - %s\n", today)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
-
-	if len(result.Data) == 0 {
-		fmt.Println("No standup entries for today.")
-		fmt.Println()
-		fmt.Println("Create one with: gitscrum standup create")
-		return nil
-	}
-
-	for _, s := range result.Data {
-		printStandupEntry(s)
-	}
-
-	return nil
-}
-
-// Standup represents a standup entry
 type Standup struct {
 	UUID      string   `json:"uuid"`
 	Date      string   `json:"date"`
@@ -102,34 +43,86 @@ type Standup struct {
 	} `json:"user"`
 }
 
+func runStandupSummary(f *factory.Factory) error {
+	if err := f.RequireAuth(); err != nil {
+		return err
+	}
+	if _, err := f.RequireWorkspace(); err != nil {
+		return err
+	}
+	project, _ := f.CurrentProject()
+
+	sp := spinner.New("Loading standup...")
+	sp.Start()
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	today := time.Now().Format("2006-01-02")
+	path := fmt.Sprintf("/companies/standup/summary?company_slug=%s&date=%s", workspace, today)
+	if project != "" {
+		path += "&project_slug=" + project
+	}
+	resp, err := client.Get(path)
+	sp.Stop()
+	if err != nil {
+		return err
+	}
+
+	var result struct {
+		Data []Standup `json:"data"`
+	}
+	if err := api.DecodeResponse(resp, &result); err != nil {
+		return err
+	}
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header(fmt.Sprintf("Daily Standup — %s", today))
+	if len(result.Data) == 0 {
+		workspace, _ := f.CurrentWorkspace()
+		project, _ := f.CurrentProject()
+		output.EmptyContext(i18n.T("no_standup_entries"), workspace, project, i18n.T("create_standup_hint"))
+		return nil
+	}
+	for _, s := range result.Data {
+		printStandupEntry(s)
+	}
+	return nil
+}
+
 func printStandupEntry(s Standup) {
-	fmt.Printf("%s\n", s.User.Name)
-	
+	output.SubHeader(s.User.Name)
 	if len(s.Completed) > 0 {
-		fmt.Println("\n  COMPLETED YESTERDAY:")
+		output.Success("Completed Yesterday")
 		for _, item := range s.Completed {
-			fmt.Printf("    • %s\n", item)
+			output.Bullet(item)
 		}
 	}
-	
 	if len(s.Planned) > 0 {
-		fmt.Println("\n  PLANNED FOR TODAY:")
+		output.Info("Planned for Today")
 		for _, item := range s.Planned {
-			fmt.Printf("    • %s\n", item)
+			output.Bullet(item)
 		}
 	}
-	
 	if len(s.Blockers) > 0 {
-		fmt.Println("\n  BLOCKERS:")
+		output.Warning("Blockers")
 		for _, item := range s.Blockers {
-			fmt.Printf("    [!] %s\n", item)
+			output.Alert(item)
 		}
 	}
-	
 	fmt.Println()
 }
 
-// NewCmdStandupCompleted shows completed tasks from yesterday
 func NewCmdStandupCompleted(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "completed",
@@ -144,22 +137,28 @@ func runStandupCompleted(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
-
 	project, _ := f.CurrentProject()
-
+	sp := spinner.New("Loading completed tasks...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	path := fmt.Sprintf("/companies/standup/completed-yesterday?date=%s", yesterday)
+	path := fmt.Sprintf("/companies/standup/completed-yesterday?company_slug=%s&date=%s", workspace, yesterday)
 	if project != "" {
 		path += "&project_slug=" + project
 	}
-
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -173,22 +172,21 @@ func runStandupCompleted(f *factory.Factory) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	fmt.Printf("COMPLETED YESTERDAY (%s):\n\n", yesterday)
-
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+	output.Header(fmt.Sprintf("Completed Yesterday (%s)", yesterday))
 	if len(result.Data) == 0 {
-		fmt.Println("  No tasks completed yesterday")
+		output.Empty("No tasks completed yesterday", "")
 		return nil
 	}
-
 	for _, t := range result.Data {
-		fmt.Printf("  • [%s] %s\n", t.Code, t.Title)
+		output.Successf("[%s] %s", t.Code, t.Title)
 	}
-
+	fmt.Println()
 	return nil
 }
 
-// NewCmdStandupBlockers lists current blockers
 func NewCmdStandupBlockers(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "blockers",
@@ -203,29 +201,35 @@ func runStandupBlockers(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
-
 	project, _ := f.CurrentProject()
-
+	sp := spinner.New("Loading blockers...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
-	path := "/companies/standup/blockers"
-	if project != "" {
-		path += "?project_slug=" + project
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		sp.Stop()
+		return err
 	}
 
+	path := fmt.Sprintf("/companies/standup/blockers?company_slug=%s", workspace)
+	if project != "" {
+		path += "&project_slug=" + project
+	}
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
 	var result struct {
 		Data []struct {
-			Code  string `json:"code"`
-			Title string `json:"title"`
+			Code     string `json:"code"`
+			Title    string `json:"title"`
 			Assignee struct {
 				Name string `json:"name"`
 			} `json:"assignee"`
@@ -234,28 +238,26 @@ func runStandupBlockers(f *factory.Factory) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	fmt.Println("CURRENT BLOCKERS:")
-	fmt.Println()
-
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+	output.Header("Current Blockers")
 	if len(result.Data) == 0 {
-		fmt.Println("  No blockers")
+		output.Success("No blockers")
 		return nil
 	}
-
 	for _, t := range result.Data {
 		assignee := t.Assignee.Name
 		if assignee == "" {
 			assignee = "unassigned"
 		}
-		fmt.Printf("  [!] [%s] %s\n", t.Code, t.Title)
-		fmt.Printf("      Assigned to: %s\n\n", assignee)
+		output.Warningf("[%s] %s", t.Code, t.Title)
+		output.Dimf("Assigned to: %s", assignee)
 	}
-
+	fmt.Println()
 	return nil
 }
 
-// NewCmdStandupTeam shows team standup status
 func NewCmdStandupTeam(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "team",
@@ -270,70 +272,72 @@ func runStandupTeam(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
 	project, _ := f.CurrentProject()
-
+	sp := spinner.New("Loading team status...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
-	path := "/companies/standup/team-status"
-	if project != "" {
-		path += "?project_slug=" + project
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		sp.Stop()
+		return err
 	}
 
+	path := fmt.Sprintf("/companies/standup/team-status?company_slug=%s", workspace)
+	if project != "" {
+		path += "&project_slug=" + project
+	}
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
 	var result struct {
 		Data []struct {
-			UserUUID           string  `json:"user_uuid"`
-			UserName           string  `json:"user_name"`
-			UserAvatar         string  `json:"user_avatar"`
-			TasksInProgress    int     `json:"tasks_in_progress"`
-			TasksCompletedToday int    `json:"tasks_completed_today"`
-			TasksCompletedWeek  int    `json:"tasks_completed_week"`
-			BlockedCount       int     `json:"blocked_count"`
-			HoursTrackedToday  float64 `json:"hours_tracked_today"`
+			UserUUID            string  `json:"user_uuid"`
+			UserName            string  `json:"user_name"`
+			UserAvatar          string  `json:"user_avatar"`
+			TasksInProgress     int     `json:"tasks_in_progress"`
+			TasksCompletedToday int     `json:"tasks_completed_today"`
+			TasksCompletedWeek  int     `json:"tasks_completed_week"`
+			BlockedCount        int     `json:"blocked_count"`
+			HoursTrackedToday   float64 `json:"hours_tracked_today"`
 		} `json:"data"`
 	}
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	fmt.Println("TEAM STATUS")
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
-
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+	output.Header("Team Status")
 	if len(result.Data) == 0 {
-		fmt.Println("  No team members found")
+		output.Empty("No team members found", "")
 		return nil
 	}
-
 	for _, m := range result.Data {
-		status := "available"
 		if m.BlockedCount > 0 {
-			status = "blocked"
+			output.Warningf("%s — blocked", m.UserName)
 		} else if m.TasksInProgress > 0 {
-			status = "working"
+			output.Successf("%s — working", m.UserName)
+		} else {
+			output.Infof("%s — available", m.UserName)
 		}
-
-		fmt.Printf("  %s\n", m.UserName)
-		fmt.Printf("    Status: %s | In Progress: %d | Done Today: %d | Blocked: %d\n",
-			status, m.TasksInProgress, m.TasksCompletedToday, m.BlockedCount)
+		output.Dimf("In Progress: %d │ Done Today: %d │ Blocked: %d",
+			m.TasksInProgress, m.TasksCompletedToday, m.BlockedCount)
 		if m.HoursTrackedToday > 0 {
-			fmt.Printf("    Hours Tracked: %.1fh\n", m.HoursTrackedToday)
+			output.Dimf("Hours Tracked: %.1fh", m.HoursTrackedToday)
 		}
-		fmt.Println()
 	}
-
+	fmt.Println()
 	return nil
 }
 
-// NewCmdStandupDigest shows weekly digest
 func NewCmdStandupDigest(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "digest",
@@ -348,20 +352,27 @@ func runStandupDigest(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
 	project, _ := f.CurrentProject()
-
+	sp := spinner.New("Loading weekly digest...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
-	path := "/companies/standup/weekly-digest"
-	if project != "" {
-		path += "?project_slug=" + project
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		sp.Stop()
+		return err
 	}
 
+	path := fmt.Sprintf("/companies/standup/weekly-digest?company_slug=%s", workspace)
+	if project != "" {
+		path += "&project_slug=" + project
+	}
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -386,46 +397,42 @@ func runStandupDigest(f *factory.Factory) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	fmt.Println("WEEKLY DIGEST")
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
-
-	fmt.Printf("  Tasks Completed: %d\n", result.Data.TotalCompleted)
-	fmt.Printf("  Hours Tracked:   %.1fh\n", result.Data.TotalHours)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+	output.Header("Weekly Digest")
+	output.KeyValuef("Tasks Completed", "%d", result.Data.TotalCompleted)
+	output.KeyValuef("Hours Tracked", "%.1fh", result.Data.TotalHours)
 	if result.Data.VelocityChange != 0 {
 		sign := "+"
 		if result.Data.VelocityChange < 0 {
 			sign = ""
 		}
-		fmt.Printf("  Velocity:        %s%.0f%%\n", sign, result.Data.VelocityChange)
+		if result.Data.VelocityChange > 0 {
+			output.Successf("Velocity: %s%.0f%%", sign, result.Data.VelocityChange)
+		} else {
+			output.Warningf("Velocity: %s%.0f%%", sign, result.Data.VelocityChange)
+		}
 	}
-	fmt.Println()
-
 	if len(result.Data.TopContributors) > 0 {
-		fmt.Println("  TOP CONTRIBUTORS:")
+		output.SubHeader("Top Contributors")
 		for i, c := range result.Data.TopContributors {
 			if i >= 5 {
 				break
 			}
-			fmt.Printf("    %d. %s (%d tasks)\n", i+1, c.Name, c.TasksCompleted)
+			output.Bulletf("#%d  %s (%d tasks)", i+1, c.Name, c.TasksCompleted)
 		}
-		fmt.Println()
 	}
-
 	if len(result.Data.DailyBreakdown) > 0 {
-		fmt.Println("  DAILY BREAKDOWN:")
+		output.SubHeader("Daily Breakdown")
 		for _, d := range result.Data.DailyBreakdown {
-			fmt.Printf("    %s: %d completed, %d created", d.Date, d.Completed, d.Created)
+			details := fmt.Sprintf("%d completed, %d created", d.Completed, d.Created)
 			if d.Blocked > 0 {
-				fmt.Printf(", %d blocked", d.Blocked)
+				details += fmt.Sprintf(", %d blocked", d.Blocked)
 			}
-			fmt.Println()
+			output.KeyValue(d.Date, details)
 		}
 	}
-
+	fmt.Println()
 	return nil
 }
-
-
-

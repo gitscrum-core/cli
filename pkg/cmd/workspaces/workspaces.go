@@ -9,6 +9,9 @@ import (
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdWorkspaces creates the workspaces command group
@@ -46,17 +49,20 @@ type Workspace struct {
 
 func runWorkspacesList(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  Run 'gitscrum auth login' to authenticate")
-		return nil
+		return err
 	}
+
+	sp := spinner.New("Loading workspaces...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	resp, err := client.Get("/companies")
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -68,39 +74,39 @@ func runWorkspacesList(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
-		fmt.Println("No workspaces found")
-		fmt.Println()
-		fmt.Println("Create one at: https://gitscrum.com/workspaces/create")
+		output.Empty(i18n.T("no_workspaces"), i18n.T("create_workspace_hint"))
 		return nil
 	}
 
 	currentWorkspace, _ := f.CurrentWorkspace()
 
-	fmt.Println("WORKSPACES:")
-	fmt.Println()
+	output.Header("Workspaces")
 
 	for _, w := range result.Data {
-		marker := "  "
-		if w.Slug == currentWorkspace {
-			marker = "▶ "
-		}
-		
-		plan := ""
+		name := w.Name
 		if w.Plan != "" {
-			plan = fmt.Sprintf(" [%s]", strings.ToUpper(w.Plan))
+			name += fmt.Sprintf(" [%s]", strings.ToUpper(w.Plan))
 		}
-		
-		fmt.Printf("%s%s%s\n", marker, w.Name, plan)
-		fmt.Printf("     Slug: %s\n", w.Slug)
-		fmt.Printf("     %d projects | %d members\n", w.ProjectsCount, w.MembersCount)
-		fmt.Println()
+
+		if w.Slug == currentWorkspace {
+			output.Successf("▶ %s", name)
+		} else {
+			output.Infof("  %s", name)
+		}
+		output.Dimf("  Slug: %s │ %d projects │ %d members", w.Slug, w.ProjectsCount, w.MembersCount)
 	}
 
 	if currentWorkspace == "" {
-		fmt.Println("Tip: Set default workspace: gitscrum config set workspace <slug>")
+		fmt.Println()
+		output.Info("Set default workspace: gitscrum config set workspace <slug>")
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -129,16 +135,24 @@ func runWorkspacesView(f *factory.Factory, slug string) error {
 	}
 
 	if slug == "" {
-		return fmt.Errorf("workspace required. Use 'gitscrum workspaces view <slug>'")
+		_, err := f.RequireWorkspace()
+		if err != nil {
+			return err
+		}
 	}
+
+	sp := spinner.New("Loading workspace...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/companies/%s", slug)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -150,20 +164,27 @@ func runWorkspacesView(f *factory.Factory, slug string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	w := result.Data
 
-	fmt.Printf("%s\n", w.Name)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Printf("\nSlug: %s\n", w.Slug)
+	output.Header(w.Name)
+
+	output.KeyValue("Slug", w.Slug)
 	if w.Plan != "" {
-		fmt.Printf("Plan: %s\n", strings.ToUpper(w.Plan))
+		output.KeyValue("Plan", strings.ToUpper(w.Plan))
 	}
 	if w.Description != "" {
-		fmt.Printf("\n%s\n", w.Description)
+		fmt.Println()
+		output.Dim(w.Description)
 	}
-	fmt.Printf("\nProjects: %d\n", w.ProjectsCount)
-	fmt.Printf("Members: %d\n", w.MembersCount)
+	fmt.Println()
+	output.KeyValuef("Projects", "%d", w.ProjectsCount)
+	output.KeyValuef("Members", "%d", w.MembersCount)
 
+	fmt.Println()
 	return nil
 }
 
@@ -191,13 +212,18 @@ func runWorkspacesStats(f *factory.Factory, slug string) error {
 		slug, _ = f.CurrentWorkspace()
 	}
 
+	sp := spinner.New("Loading statistics...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/companies/workspace-stats"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -216,20 +242,23 @@ func runWorkspacesStats(f *factory.Factory, slug string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	s := result.Data
 
-	fmt.Printf("WORKSPACE STATISTICS: %s\n", slug)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
-	
-	fmt.Printf("Projects:   %d\n", s.TotalProjects)
-	fmt.Printf("Tasks:      %d total, %d completed\n", s.TotalTasks, s.CompletedTasks)
-	fmt.Printf("Sprints:    %d active\n", s.ActiveSprints)
-	fmt.Printf("Members:    %d\n", s.TotalMembers)
-	
-	hours := s.TotalTime / 60
-	fmt.Printf("Total Time: %dh\n", hours)
+	output.Header(fmt.Sprintf("Workspace Statistics: %s", slug))
 
+	output.KeyValuef("Projects", "%d", s.TotalProjects)
+	output.KeyValuef("Tasks", "%d total, %d completed", s.TotalTasks, s.CompletedTasks)
+	output.KeyValuef("Sprints", "%d active", s.ActiveSprints)
+	output.KeyValuef("Members", "%d", s.TotalMembers)
+
+	hours := s.TotalTime / 60
+	output.KeyValuef("Total Time", "%dh", hours)
+
+	fmt.Println()
 	return nil
 }
 
@@ -257,10 +286,9 @@ func runWorkspacesSwitch(f *factory.Factory, slug string) error {
 		return err
 	}
 
-	fmt.Printf("Switched to workspace: %s\n", slug)
-	fmt.Println()
-	fmt.Println("Now set a project: gitscrum projects switch <slug>")
-	
+	output.Successf("Switched to workspace: %s", slug)
+	output.Infof("Now set a project: gitscrum projects switch <slug>")
+
 	return nil
 }
 
@@ -288,33 +316,42 @@ func runWorkspacesMembers(f *factory.Factory, slug string) error {
 		slug, _ = f.CurrentWorkspace()
 	}
 
+	sp := spinner.New("Loading members...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/workspace-members/%s", slug)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
 	var result struct {
 		Data []struct {
-			UUID   string `json:"uuid"`
-			Name   string `json:"name"`
-			Email  string `json:"email"`
-			Role   string `json:"role"`
+			UUID  string `json:"uuid"`
+			Name  string `json:"name"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
 		} `json:"data"`
 	}
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
 
-	fmt.Printf("MEMBERS OF %s:\n\n", slug)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header(fmt.Sprintf("Members of %s", slug))
 
 	if len(result.Data) == 0 {
-		fmt.Println("  No members found")
+		output.Empty("No members found", "")
 		return nil
 	}
 
@@ -336,27 +373,26 @@ func runWorkspacesMembers(f *factory.Factory, slug string) error {
 	}
 
 	if len(owners) > 0 {
-		fmt.Println("  OWNERS:")
+		output.SubHeader("Owners")
 		for _, o := range owners {
-			fmt.Printf("     • %s\n", o)
+			output.Bulletf("👑 %s", o)
 		}
-		fmt.Println()
 	}
 
 	if len(managers) > 0 {
-		fmt.Println("  ⭐ Managers:")
+		output.SubHeader("Managers")
 		for _, m := range managers {
-			fmt.Printf("     • %s\n", m)
+			output.Bulletf("⭐ %s", m)
 		}
-		fmt.Println()
 	}
 
 	if len(members) > 0 {
-		fmt.Println("  Members:")
+		output.SubHeader("Members")
 		for _, m := range members {
-			fmt.Printf("     • %s\n", m)
+			output.Bullet(m)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }

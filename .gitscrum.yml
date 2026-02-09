@@ -1,0 +1,23 @@
+version: "1"
+workspace: test-workspace
+project: test-project
+branch:
+    prefixes:
+        bug: bugfix
+        chore: chore
+        feature: feature
+        hotfix: hotfix
+    default_prefix: feature
+    include_title: true
+    max_length: 50
+timer:
+    min_duration: 1
+    round_to: 5
+hooks:
+    prepend_task_code: true
+    commit_format: '[%s] %s'
+    show_task_on_checkout: true
+automation:
+    on_pr_open: in-progress
+    on_pr_merge: done
+    complete_on_merge: true

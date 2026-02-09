@@ -10,6 +10,9 @@ import (
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdWiki creates the wiki command group
@@ -34,35 +37,37 @@ Without a subcommand, lists wiki pages.`,
 	return cmd
 }
 
-// Page represents a wiki page
+// Page represents a wiki page (matches WikiResource.php)
 type Page struct {
-	UUID      string `json:"uuid"`
-	Slug      string `json:"slug"`
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	UpdatedAt string `json:"updated_at"`
-	Author    struct {
-		Name string `json:"name"`
-	} `json:"author"`
+	UUID     string `json:"uuid"`
+	Slug     string `json:"slug"`
+	Title    string `json:"title"`
+	Page     string `json:"page"`
 	Children []Page `json:"children,omitempty"`
 }
 
 func runWikiList(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  Run 'gitscrum auth login' to authenticate")
-		return nil
+		return err
 	}
 
-
-
-	client, err := f.APIClient()
+	workspace, project, err := f.RequireWorkspaceAndProject()
 	if err != nil {
 		return err
 	}
 
-	path := "/wiki/pages"
+	sp := spinner.New("Loading wiki pages...")
+	sp.Start()
+
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	path := fmt.Sprintf("/wiki/pages?company_slug=%s&project_slug=%s", workspace, project)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -74,26 +79,30 @@ func runWikiList(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
-		fmt.Println("No wiki pages yet")
-		fmt.Println()
-		fmt.Println("Create one with: gitscrum wiki create \"Getting Started\"")
+		workspace, _ := f.CurrentWorkspace()
+		project, _ := f.CurrentProject()
+		output.EmptyContext(i18n.T("no_wiki_pages"), workspace, project, i18n.T("create_wiki_hint"))
 		return nil
 	}
 
-	fmt.Println("WIKI PAGES:")
-	fmt.Println()
+	output.Header("Wiki Pages")
 
 	printPages(result.Data, 0)
 
+	fmt.Println()
 	return nil
 }
 
 func printPages(pages []Page, indent int) {
 	prefix := strings.Repeat("  ", indent)
 	for _, p := range pages {
-		fmt.Printf("%s- %s\n", prefix, p.Title)
-		fmt.Printf("%s   slug: %s\n", prefix, p.Slug)
+		fmt.Printf("%s  📄 %s\n", prefix, p.Title)
+		output.Dimf("%s     slug: %s", prefix, p.Slug)
 		if len(p.Children) > 0 {
 			printPages(p.Children, indent+1)
 		}
@@ -117,14 +126,18 @@ func runWikiView(f *factory.Factory, slug string) error {
 		return err
 	}
 
+	sp := spinner.New("Loading wiki page...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/wiki/pages/%s", slug)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -136,15 +149,17 @@ func runWikiView(f *factory.Factory, slug string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	p := result.Data
 
-	fmt.Printf("PAGE: %s\n", p.Title)
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
-	fmt.Println(p.Content)
-	fmt.Println()
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Printf("Last updated by %s\n", p.Author.Name)
+	output.Header(p.Title)
+
+	if p.Page != "" {
+		fmt.Println(p.Page)
+	}
 
 	return nil
 }
@@ -173,7 +188,6 @@ func runWikiCreate(f *factory.Factory, title, file, parent string) error {
 		return err
 	}
 
-
 	var content string
 	if file != "" {
 		data, err := os.ReadFile(file)
@@ -185,14 +199,18 @@ func runWikiCreate(f *factory.Factory, title, file, parent string) error {
 		content = "# " + title + "\n\nContent goes here..."
 	}
 
+	sp := spinner.New("Creating wiki page...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	body := map[string]interface{}{
-		"title":   title,
-		"content": content,
+		"title": title,
+		"page":  content,
 	}
 	if parent != "" {
 		body["parent_slug"] = parent
@@ -200,6 +218,7 @@ func runWikiCreate(f *factory.Factory, title, file, parent string) error {
 
 	path := "/wiki/pages"
 	resp, err := client.Post(path, body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -211,9 +230,9 @@ func runWikiCreate(f *factory.Factory, title, file, parent string) error {
 		return err
 	}
 
-	fmt.Printf("Wiki page created: %s\n", result.Data.Title)
-	fmt.Printf("  Slug: %s\n", result.Data.Slug)
-	fmt.Printf("  View: gitscrum wiki view %s\n", result.Data.Slug)
+	output.Successf("Wiki page created: %s", result.Data.Title)
+	output.KeyValue("Slug", result.Data.Slug)
+	output.Infof("View: gitscrum wiki view %s", result.Data.Slug)
 
 	return nil
 }
@@ -235,14 +254,18 @@ func runWikiSearch(f *factory.Factory, query string) error {
 		return err
 	}
 
+	sp := spinner.New("Searching wiki...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/wiki/pages/search?q=%s", query)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -254,18 +277,23 @@ func runWikiSearch(f *factory.Factory, query string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
-		fmt.Printf("No wiki pages found for \"%s\"\n", query)
+		output.Empty(fmt.Sprintf("No wiki pages found for \"%s\"", query), "")
 		return nil
 	}
 
-	fmt.Printf("Search results for \"%s\":\n\n", query)
+	output.Header(fmt.Sprintf("Search results for \"%s\"", query))
 
 	for _, p := range result.Data {
-		fmt.Printf("  - %s\n", p.Title)
-		fmt.Printf("     Slug: %s\n\n", p.Slug)
+		output.Bulletf("📄 %s", p.Title)
+		output.Dimf("   slug: %s", p.Slug)
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -293,22 +321,28 @@ func runWikiEdit(f *factory.Factory, slug, file string) error {
 		return err
 	}
 
+	sp := spinner.New("Updating wiki page...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	content, err := os.ReadFile(file)
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
 	body := map[string]interface{}{
-		"content": string(content),
+		"page": string(content),
 	}
 
 	path := fmt.Sprintf("/wiki/pages/%s", slug)
 	resp, err := client.Patch(path, body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -320,7 +354,7 @@ func runWikiEdit(f *factory.Factory, slug, file string) error {
 		return err
 	}
 
-	fmt.Printf("Wiki page updated: %s\n", result.Data.Title)
+	output.Successf("Wiki page updated: %s", result.Data.Title)
 
 	return nil
 }

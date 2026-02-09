@@ -32,20 +32,26 @@ func TestProposalsList_Success(t *testing.T) {
 			response := map[string]interface{}{
 				"data": []map[string]interface{}{
 					{
-						"uuid":   "prop-1",
-						"code":   "PRP-2026-001",
-						"title":  "Website Redesign",
-						"amount": 50000.00,
-						"status": "sent",
-						"client": map[string]interface{}{"name": "TechCorp"},
+						"uuid":                  "prop-1",
+						"ref_code":              "PRP-2026-001",
+						"code":                  "PRP-001",
+						"title":                 "Website Redesign",
+						"status":                "sent",
+						"status_label":          "Sent",
+						"total_value_formatted": "50,000.00",
+						"currency":              "USD",
+						"client_name":           "TechCorp",
 					},
 					{
-						"uuid":   "prop-2",
-						"code":   "PRP-2026-002",
-						"title":  "Mobile App",
-						"amount": 80000.00,
-						"status": "accepted",
-						"client": map[string]interface{}{"name": "StartupXYZ"},
+						"uuid":                  "prop-2",
+						"ref_code":              "PRP-2026-002",
+						"code":                  "PRP-002",
+						"title":                 "Mobile App",
+						"status":                "approved",
+						"status_label":          "Approved",
+						"total_value_formatted": "80,000.00",
+						"currency":              "USD",
+						"client_name":           "StartupXYZ",
 					},
 				},
 			}
@@ -83,13 +89,16 @@ func TestProposalView_Success(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/proposals/") && !strings.Contains(r.URL.Path, "/send") {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
-					"uuid":       "prop-1",
-					"code":       "PRP-2026-001",
-					"title":      "Website Redesign",
-					"amount":     50000.00,
-					"status":     "sent",
-					"expires_at": "2026-02-28",
-					"client":     map[string]interface{}{"name": "TechCorp"},
+					"uuid":                  "prop-1",
+					"ref_code":              "PRP-2026-001",
+					"code":                  "PRP-001",
+					"title":                 "Website Redesign",
+					"status":                "sent",
+					"status_label":          "Sent",
+					"total_value_formatted": "50,000.00",
+					"currency":              "USD",
+					"client_name":           "TechCorp",
+					"expires_at":            map[string]interface{}{"date": "2026-02-28"},
 				},
 			}
 			json.NewEncoder(w).Encode(response)
@@ -111,8 +120,8 @@ func TestProposalView_Success(t *testing.T) {
 	}
 	api.DecodeResponse(resp, &result)
 
-	if result.Data.Amount != 50000.00 {
-		t.Errorf("amount = %.2f, want 50000.00", result.Data.Amount)
+	if result.Data.TotalValueFormatted != "50,000.00" {
+		t.Errorf("total_value_formatted = %q, want '50,000.00'", result.Data.TotalValueFormatted)
 	}
 }
 

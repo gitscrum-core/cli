@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
+	clierrors "github.com/gitscrum-core/cli/pkg/errors"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/analytics"
 	"github.com/gitscrum-core/cli/pkg/cmd/auth"
 	"github.com/gitscrum-core/cli/pkg/cmd/chat"
@@ -27,16 +31,16 @@ import (
 	"github.com/gitscrum-core/cli/pkg/cmd/timer"
 	"github.com/gitscrum-core/cli/pkg/cmd/wiki"
 	"github.com/gitscrum-core/cli/pkg/cmd/workspaces"
+	cfgpkg "github.com/gitscrum-core/cli/pkg/config"
+	"github.com/gitscrum-core/cli/pkg/i18n"
 	"github.com/gitscrum-core/cli/pkg/output"
 )
 
 var (
 	// Global flags
-	cfgFile     string
-	jsonOutput  bool
-	quietMode   bool
-	workspaceID string
-	projectID   string
+	cfgFile    string
+	jsonOutput bool
+	quietMode  bool
 )
 
 // Execute runs the root command and returns exit code
@@ -44,6 +48,11 @@ func Execute(version, commit, date string) int {
 	rootCmd := NewCmdRoot(version, commit, date)
 	
 	if err := rootCmd.Execute(); err != nil {
+		if cliErr, ok := err.(*clierrors.CLIError); ok {
+			cliErr.Print()
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		}
 		return 1
 	}
 	return 0
@@ -96,12 +105,6 @@ GETTING STARTED:
 	cmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default ~/.gitscrum/config.yaml)")
 	cmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 	cmd.PersistentFlags().BoolVarP(&quietMode, "quiet", "q", false, "quiet mode (only IDs)")
-	cmd.PersistentFlags().StringVarP(&workspaceID, "workspace", "w", "", "workspace slug")
-	cmd.PersistentFlags().StringVarP(&projectID, "project", "p", "", "project slug")
-
-	// Bind flags to viper
-	viper.BindPFlag("workspace", cmd.PersistentFlags().Lookup("workspace"))
-	viper.BindPFlag("project", cmd.PersistentFlags().Lookup("project"))
 
 	// Add subcommands
 	cmd.AddCommand(initcmd.NewCmdInit(f))
@@ -126,6 +129,18 @@ GETTING STARTED:
 	cmd.AddCommand(hooks.NewCmdHooks(f))
 	cmd.AddCommand(NewCmdVersion(version, commit, date))
 	cmd.AddCommand(NewCmdCompletion())
+	cmd.AddCommand(NewCmdStatus(f))
+
+	// Top-level aliases for better DX
+	loginCmd := auth.NewCmdLogin(f)
+	loginCmd.Example = "  gitscrum login"
+	cmd.AddCommand(loginCmd)
+
+	logoutCmd := auth.NewCmdLogout(f)
+	logoutCmd.Example = "  gitscrum logout"
+	cmd.AddCommand(logoutCmd)
+
+	cmd.AddCommand(NewCmdSwitch(f))
 
 	return cmd
 }
@@ -156,6 +171,10 @@ func initConfig() error {
 			return err
 		}
 	}
+
+	// Initialize i18n with configured language
+	lang := cfgpkg.GetLanguage()
+	i18n.Init(lang)
 
 	return nil
 }
@@ -211,4 +230,99 @@ EXAMPLES:
 		},
 	}
 	return cmd
+}
+
+// NewCmdStatus creates the top-level status command
+func NewCmdStatus(f *factory.Factory) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show current authentication and configuration status",
+		Long:  "Show the authenticated user, configured workspace, and project.",
+		Example: `  gitscrum status`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			green := color.New(color.FgGreen)
+			yellow := color.New(color.FgYellow)
+			gray := color.New(color.FgHiBlack)
+			white := color.New(color.FgWhite, color.Bold)
+
+			fmt.Println()
+			white.Println("  GitScrum Status")
+			gray.Println("  ─────────────────────")
+
+			// Auth status
+			if !f.IsAuthenticated() {
+				yellow.Println("  ✗ Not authenticated")
+				gray.Println("    Run 'gitscrum auth login' to authenticate")
+				fmt.Println()
+				return nil
+			}
+
+			// Fetch user profile
+			client, err := f.APIClient()
+			if err == nil {
+				resp, meErr := client.Get("/me")
+				if meErr == nil {
+					var user struct {
+						Data struct {
+							Name  string `json:"name"`
+							Email string `json:"email"`
+						} `json:"data"`
+					}
+					if api.DecodeResponse(resp, &user) == nil && user.Data.Name != "" {
+						green.Printf("  ✓ Logged in as: ")
+						fmt.Printf("%s ", user.Data.Name)
+						gray.Printf("(%s)\n", user.Data.Email)
+					} else {
+						green.Println("  ✓ Authenticated")
+					}
+				} else {
+					green.Println("  ✓ Authenticated")
+				}
+			}
+
+			// Workspace
+			ws, wsErr := f.CurrentWorkspace()
+			if wsErr == nil && ws != "" {
+				green.Printf("  ✓ Workspace: ")
+				fmt.Println(ws)
+			} else {
+				yellow.Println("  ✗ No workspace configured")
+				gray.Println("    Run 'gitscrum config set workspace <slug>'")
+			}
+
+			// Project
+			pj, pjErr := f.CurrentProject()
+			if pjErr == nil && pj != "" {
+				green.Printf("  ✓ Project: ")
+				fmt.Println(pj)
+			} else {
+				yellow.Println("  ✗ No project configured")
+				gray.Println("    Run 'gitscrum config set project <slug>'")
+			}
+
+			fmt.Println()
+			return nil
+		},
+	}
+}
+
+// NewCmdSwitch creates the switch command for changing workspace/project
+func NewCmdSwitch(f *factory.Factory) *cobra.Command {
+	return &cobra.Command{
+		Use:     "switch",
+		Short:   "Switch workspace and project interactively",
+		Example: "  gitscrum switch",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := f.RequireAuth(); err != nil {
+				return err
+			}
+
+			token, err := f.AuthToken()
+			if err != nil {
+				return err
+			}
+
+			return auth.RunOnboarding(token)
+		},
+	}
 }

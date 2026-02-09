@@ -58,16 +58,33 @@ cli/
 │   ├── api/            # HTTP client and API utilities
 │   ├── auth/           # Authentication (OAuth, token storage)
 │   ├── cmd/            # Command implementations
+│   │   ├── analytics/
 │   │   ├── auth/
+│   │   ├── chat/
+│   │   ├── clients/
 │   │   ├── config/
+│   │   ├── crm/
+│   │   ├── hooks/
+│   │   ├── init/
+│   │   ├── invoices/
+│   │   ├── notifications/
 │   │   ├── projects/
+│   │   ├── proposals/
 │   │   ├── sprints/
+│   │   ├── standup/
 │   │   ├── tasks/
-│   │   └── timer/
+│   │   ├── timer/
+│   │   ├── wiki/
+│   │   └── workspaces/
 │   ├── config/         # Configuration management
 │   ├── git/            # Git utilities
-│   └── output/         # Output formatting (table, JSON)
+│   ├── i18n/           # Internationalization
+│   ├── interactive/    # Interactive prompts
+│   ├── output/         # Output formatting (table, JSON)
+│   ├── services/       # Business logic services
+│   └── spinner/        # CLI spinner
 ├── docs/               # Documentation
+│   ├── commands/       # Command documentation
 │   └── examples/       # CI/CD and automation examples
 └── install.sh          # Installation script
 ```

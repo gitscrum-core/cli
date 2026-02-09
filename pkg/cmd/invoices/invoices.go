@@ -3,12 +3,14 @@ package invoices
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdInvoices creates the invoices command group
@@ -33,35 +35,51 @@ Without a subcommand, lists all invoices.`,
 	return cmd
 }
 
-// Invoice represents an invoice
+// Invoice represents an invoice (matches CompanyInvoiceResource.php)
 type Invoice struct {
-	UUID       string  `json:"uuid"`
-	Code       string  `json:"code"`
-	Status     string  `json:"status"`
-	Amount     float64 `json:"amount"`
-	Currency   string  `json:"currency"`
-	DueDate    string  `json:"due_date"`
-	PaidAt     string  `json:"paid_at"`
-	Client     struct {
+	UUID     string  `json:"uuid"`
+	RefCode  string  `json:"ref_code"`
+	Series   string  `json:"series"`
+	Status   struct {
+		ID   int    `json:"id"`
 		Name string `json:"name"`
-		Slug string `json:"slug"`
-	} `json:"client"`
+	} `json:"status"`
+	GrossTotal          int               `json:"gross_total"`
+	GrossTotalFormatted string            `json:"gross_total_formatted"`
+	Currency struct {
+		Symbol   string `json:"symbol"`
+		Code     string `json:"code"`
+	} `json:"currency"`
+	PaymentDueAt *api.DateResource `json:"payment_due_at"`
+	PaidAt       *api.DateResource `json:"paid_at"`
+	Contact struct {
+		Name string `json:"name"`
+		UUID string `json:"uuid"`
+	} `json:"contact"`
 }
 
 func runInvoicesList(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
-
-	client, err := f.APIClient()
+	workspace, err := f.RequireWorkspace()
 	if err != nil {
 		return err
 	}
 
-	path := "/company-invoices"
+	sp := spinner.New("Loading invoices...")
+	sp.Start()
+
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	path := fmt.Sprintf("/company-invoices?company_slug=%s", workspace)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -73,42 +91,44 @@ func runInvoicesList(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
-		fmt.Println("No invoices found")
+		workspace, _ := f.CurrentWorkspace()
+		output.EmptyContext(i18n.T("no_invoices"), workspace, "", i18n.T("create_invoice_hint"))
 		return nil
 	}
 
-	fmt.Println("INVOICES:")
-	fmt.Println()
+	output.Header("Invoices")
 
 	for _, inv := range result.Data {
-		status := getInvoiceStatusIcon(inv.Status)
-		currency := inv.Currency
+		currency := inv.Currency.Code
 		if currency == "" {
 			currency = "USD"
 		}
-		fmt.Printf("  %s %s - %s %.2f\n", status, inv.Code, currency, inv.Amount)
-		fmt.Printf("     Client: %s\n", inv.Client.Name)
-		fmt.Printf("     Due: %s • Status: %s\n", inv.DueDate, inv.Status)
-		fmt.Println()
+
+		// Use ref_code if available, fallback to first 8 chars of UUID
+		code := inv.RefCode
+		if code == "" && len(inv.UUID) >= 8 {
+			code = inv.UUID[:8]
+		}
+
+		switch inv.Status.Name {
+		case "Paid":
+			output.Successf("✓ [%s] %s — %s %s", code, inv.Series, currency, inv.GrossTotalFormatted)
+		case "Pending":
+			output.Infof("→ [%s] %s — %s %s", code, inv.Series, currency, inv.GrossTotalFormatted)
+		default:
+			output.Dimf("○ [%s] %s — %s %s (%s)", code, inv.Series, currency, inv.GrossTotalFormatted, inv.Status.Name)
+		}
+		output.Dimf("   Contact: %s │ Due: %s", inv.Contact.Name, inv.PaymentDueAt.ISODate())
 	}
 
+	fmt.Println()
+	output.Dimf("View details: gitscrum invoices view <code>")
 	return nil
-}
-
-func getInvoiceStatusIcon(status string) string {
-	switch status {
-	case "paid":
-		return "[paid]"
-	case "sent":
-		return "[sent]"
-	case "overdue":
-		return "[!!]"
-	case "draft":
-		return "[draft]"
-	default:
-		return "[-]"
-	}
 }
 
 // NewCmdInvoicesView shows invoice details
@@ -128,14 +148,18 @@ func runInvoicesView(f *factory.Factory, code string) error {
 		return err
 	}
 
+	sp := spinner.New("Loading invoice...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/company-invoices/%s", code)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -147,22 +171,36 @@ func runInvoicesView(f *factory.Factory, code string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	inv := result.Data
-	currency := inv.Currency
+	currency := inv.Currency.Code
 	if currency == "" {
 		currency = "USD"
 	}
 
-	fmt.Printf("Invoice %s\n", inv.Code)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Printf("\nClient: %s\n", inv.Client.Name)
-	fmt.Printf("Amount: %s %.2f\n", currency, inv.Amount)
-	fmt.Printf("Status: %s %s\n", getInvoiceStatusIcon(inv.Status), inv.Status)
-	fmt.Printf("Due Date: %s\n", inv.DueDate)
-	if inv.PaidAt != "" {
-		fmt.Printf("Paid At: %s\n", inv.PaidAt)
+	output.Header(fmt.Sprintf("Invoice %s", inv.Series))
+
+	output.KeyValue("Contact", inv.Contact.Name)
+	output.KeyValuef("Amount", "%s %s", currency, inv.GrossTotalFormatted)
+
+	switch inv.Status.Name {
+	case "Paid":
+		output.Success("Status: Paid")
+	case "Draft":
+		output.Dim("Status: Draft")
+	default:
+		output.KeyValue("Status", inv.Status.Name)
 	}
 
+	output.KeyValue("Due Date", inv.PaymentDueAt.ISODate())
+	if inv.PaidAt != nil && inv.PaidAt.ISODate() != "" {
+		output.KeyValue("Paid At", inv.PaidAt.ISODate())
+	}
+
+	fmt.Println()
 	return nil
 }
 
@@ -194,9 +232,12 @@ func runInvoicesCreate(f *factory.Factory, clientSlug string, amount float64, cu
 		return err
 	}
 
+	sp := spinner.New("Creating invoice...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
@@ -211,6 +252,7 @@ func runInvoicesCreate(f *factory.Factory, clientSlug string, amount float64, cu
 
 	path := "/company-invoices"
 	resp, err := client.Post(path, body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -222,9 +264,9 @@ func runInvoicesCreate(f *factory.Factory, clientSlug string, amount float64, cu
 		return err
 	}
 
-	fmt.Printf("Invoice created: %s\n", result.Data.Code)
-	fmt.Printf("  Amount: %s %.2f\n", result.Data.Currency, result.Data.Amount)
-	fmt.Printf("  Client: %s\n", result.Data.Client.Name)
+	output.Successf("Invoice created: %s", result.Data.Series)
+	output.KeyValuef("Amount", "%s %s", result.Data.Currency.Code, result.Data.GrossTotalFormatted)
+	output.KeyValue("Contact", result.Data.Contact.Name)
 
 	return nil
 }
@@ -246,19 +288,23 @@ func runInvoicesSend(f *factory.Factory, code string) error {
 		return err
 	}
 
+	sp := spinner.New("Sending invoice...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/company-invoices/%s/send", code)
 	_, err = client.Post(path, nil)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Invoice %s sent to client\n", code)
+	output.Successf("Invoice %s sent to client", code)
 	return nil
 }
 
@@ -279,18 +325,22 @@ func runInvoicesMarkPaid(f *factory.Factory, code string) error {
 		return err
 	}
 
+	sp := spinner.New("Marking as paid...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/company-invoices/%s/paid", code)
 	_, err = client.Post(path, nil)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Invoice %s marked as paid\n", code)
+	output.Successf("Invoice %s marked as paid", code)
 	return nil
 }

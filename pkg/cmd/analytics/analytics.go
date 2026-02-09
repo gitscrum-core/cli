@@ -9,6 +9,8 @@ import (
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdAnalytics creates the analytics command group
@@ -49,23 +51,26 @@ func NewCmdVelocity(f *factory.Factory) *cobra.Command {
 
 func runVelocity(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  run 'gitscrum auth login' to authenticate")
-		return nil
+		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required. Use -w flag or set default")
-	}
-
-	client, err := f.APIClient()
+	workspace, err := f.RequireWorkspace()
 	if err != nil {
 		return err
 	}
 
-	path := "/companies/analytics/velocity"
+	sp := spinner.New("Loading velocity data...")
+	sp.Start()
+
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	path := fmt.Sprintf("/companies/analytics/velocity?company_slug=%s", workspace)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -96,17 +101,19 @@ func runVelocity(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("VELOCITY TREND (Last 4 Weeks)")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println()
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
 
-	fmt.Printf("  Completed this week: %d\n", result.Data.QuickStats.CompletedThisWeek)
-	fmt.Printf("  In progress: %d\n", result.Data.QuickStats.TotalInProgress)
-	fmt.Println()
+	output.Header("Velocity Trend (Last 4 Weeks)")
+
+	output.KeyValuef("Completed this week", "%d", result.Data.QuickStats.CompletedThisWeek)
+	output.KeyValuef("In progress", "%d", result.Data.QuickStats.TotalInProgress)
 
 	if len(result.Data.WeeklyTrend) > 0 {
+		output.SubHeader("Weekly Breakdown")
 		fmt.Println("  Week        Created  Completed  Effort  Net")
-		fmt.Println("  " + strings.Repeat("-", 48))
+		fmt.Println("  " + strings.Repeat("─", 48))
 		for _, w := range result.Data.WeeklyTrend {
 			netSymbol := ""
 			if w.Net > 0 {
@@ -115,18 +122,17 @@ func runVelocity(f *factory.Factory) error {
 			fmt.Printf("  %-10s  %7d  %9d  %6d  %s%d\n",
 				w.Week, w.Created, w.Completed, w.Effort, netSymbol, w.Net)
 		}
-		fmt.Println()
 	}
 
 	if len(result.Data.ActiveSprints) > 0 {
-		fmt.Println("ACTIVE SPRINTS:")
+		output.SubHeader("Active Sprints")
 		for _, s := range result.Data.ActiveSprints {
 			bar := renderProgressBar(s.Percent, 20)
-			fmt.Printf("  %s %s %.0f%% (%d days left)\n",
-				bar, s.Title, s.Percent, s.DaysRemaining)
+			output.Bulletf("%s %s %.0f%% (%d days left)", bar, s.Title, s.Percent, s.DaysRemaining)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -144,22 +150,25 @@ func NewCmdWorkload(f *factory.Factory) *cobra.Command {
 
 func runWorkload(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required")
+	if _, err := f.RequireWorkspace(); err != nil {
+		return err
 	}
+
+	sp := spinner.New("Loading workload data...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/companies/analytics/workload"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -183,18 +192,24 @@ func runWorkload(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("TEAM WORKLOAD")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("\n  Team size: %d members | Unassigned tasks: %d\n\n",
-		result.Data.TeamSize, result.Data.Unassigned)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Team Workload")
+
+	output.KeyValuef("Team size", "%d members", result.Data.TeamSize)
+	output.KeyValuef("Unassigned tasks", "%d", result.Data.Unassigned)
 
 	if len(result.Data.Members) == 0 {
-		fmt.Println("  No team members with assigned tasks")
+		fmt.Println()
+		output.Empty("No team members with assigned tasks", "")
 		return nil
 	}
 
+	fmt.Println()
 	fmt.Println("  Name                 Tasks  In Progress  Overdue  Status")
-	fmt.Println("  " + strings.Repeat("-", 55))
+	fmt.Println("  " + strings.Repeat("─", 55))
 
 	for _, m := range result.Data.Members {
 		status := getLoadIndicator(m.LoadLevel)
@@ -202,13 +217,13 @@ func runWorkload(f *factory.Factory) error {
 		if m.IsTracking {
 			tracking = " [T]"
 		}
-		name := truncateString(m.Name, 18)
+		name := output.Truncate(m.Name, 18)
 		fmt.Printf("  %-18s  %5d  %11d  %7d  %s%s\n",
 			name, m.TotalTasks, m.InProgress, m.Overdue, status, tracking)
 	}
 
 	fmt.Println()
-	fmt.Println("  Status: [OK] balanced  [!] busy  [!!] overloaded  [T] tracking")
+	output.Dim("Status: [OK] balanced  [!] busy  [!!] overloaded  [T] tracking")
 
 	return nil
 }
@@ -227,22 +242,25 @@ func NewCmdBlockers(f *factory.Factory) *cobra.Command {
 
 func runBlockers(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required")
+	if _, err := f.RequireWorkspace(); err != nil {
+		return err
 	}
+
+	sp := spinner.New("Loading blockers...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/companies/analytics/blockers"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -269,27 +287,39 @@ func runBlockers(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("BLOCKED TASKS")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("\n  Total blocked: %d | Avg days blocked: %.1f\n\n",
-		result.Data.Summary.Total, result.Data.Summary.AvgDaysBlocked)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Blocked Tasks")
+
+	output.KeyValuef("Total blocked", "%d", result.Data.Summary.Total)
+	output.KeyValuef("Avg days blocked", "%.1f", result.Data.Summary.AvgDaysBlocked)
 
 	if len(result.Data.Tasks) == 0 {
-		fmt.Println("  No blocked tasks")
+		fmt.Println()
+		output.Success("No blocked tasks")
 		return nil
 	}
 
+	fmt.Println()
 	for _, t := range result.Data.Tasks {
-		daysBadge := getDaysBadge(t.DaysBlocked)
-		title := truncateString(t.Title, 35)
-		fmt.Printf("  %s %s %s\n", t.Code, daysBadge, title)
+		title := output.Truncate(t.Title, 35)
+		if t.DaysBlocked >= 7 {
+			output.Errorf("%s  %dd blocked  %s", t.Code, t.DaysBlocked, title)
+		} else if t.DaysBlocked >= 3 {
+			output.Warningf("%s  %dd blocked  %s", t.Code, t.DaysBlocked, title)
+		} else {
+			output.Infof("%s  %dd blocked  %s", t.Code, t.DaysBlocked, title)
+		}
 		blocker := "Unknown"
 		if t.BlockerBy != nil {
 			blocker = t.BlockerBy.Name
 		}
-		fmt.Printf("       -> Project: %s | Blocked by: %s\n", t.Project, blocker)
+		output.Dimf("Project: %s │ Blocked by: %s", t.Project, blocker)
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -313,22 +343,25 @@ func NewCmdCycleTime(f *factory.Factory) *cobra.Command {
 
 func runCycleTime(f *factory.Factory, days int) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required")
+	if _, err := f.RequireWorkspace(); err != nil {
+		return err
 	}
+
+	sp := spinner.New("Loading cycle time data...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/companies/analytics/cycle-time?days=%d", days)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -349,23 +382,28 @@ func runCycleTime(f *factory.Factory, days int) error {
 		return err
 	}
 
-	fmt.Println("CYCLE TIME ANALYTICS")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("\n  Period: Last %d days\n", result.Data.PeriodDays)
-	fmt.Printf("  Tasks completed: %d\n", result.Data.TotalCompleted)
-	fmt.Printf("  Average cycle time: %.1f hours (%.1f days)\n\n",
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Cycle Time Analytics")
+
+	output.KeyValuef("Period", "Last %d days", result.Data.PeriodDays)
+	output.KeyValuef("Tasks completed", "%d", result.Data.TotalCompleted)
+	output.KeyValuef("Average cycle time", "%.1f hours (%.1f days)",
 		result.Data.AverageHours, result.Data.AverageHours/24)
 
 	if len(result.Data.ByType) > 0 {
-		fmt.Println("  By Issue Type:")
-		fmt.Println("  " + strings.Repeat("-", 40))
+		output.SubHeader("By Issue Type")
 		fmt.Println("  Type            Count   Avg Hours")
+		fmt.Println("  " + strings.Repeat("─", 40))
 		for _, t := range result.Data.ByType {
-			typeName := truncateString(t.Type, 14)
+			typeName := output.Truncate(t.Type, 14)
 			fmt.Printf("  %-14s  %5d   %9.1f\n", typeName, t.Count, t.AvgHours)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -383,22 +421,25 @@ func NewCmdThroughput(f *factory.Factory) *cobra.Command {
 
 func runThroughput(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required")
+	if _, err := f.RequireWorkspace(); err != nil {
+		return err
 	}
+
+	sp := spinner.New("Loading throughput data...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/companies/analytics/throughput"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -420,13 +461,18 @@ func runThroughput(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("THROUGHPUT (Tasks/Week)")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("\n  Total completed: %d | Average/week: %.1f\n\n",
-		result.Data.TotalCompleted, result.Data.AveragePerWeek)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Throughput (Tasks/Week)")
+
+	output.KeyValuef("Total completed", "%d", result.Data.TotalCompleted)
+	output.KeyValuef("Average/week", "%.1f", result.Data.AveragePerWeek)
 
 	if len(result.Data.Weekly) == 0 {
-		fmt.Println("  No data available")
+		fmt.Println()
+		output.Empty("No data available", "")
 		return nil
 	}
 
@@ -437,11 +483,13 @@ func runThroughput(f *factory.Factory) error {
 		}
 	}
 
+	fmt.Println()
 	for _, w := range result.Data.Weekly {
 		bar := renderHorizontalBar(w.Completed, maxCompleted, 30)
 		fmt.Printf("  %-10s %s %d\n", w.Week, bar, w.Completed)
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -453,18 +501,18 @@ func renderProgressBar(percent float64, width int) string {
 		filled = width
 	}
 	empty := width - filled
-	return "[" + strings.Repeat("#", filled) + strings.Repeat("-", empty) + "]"
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
 }
 
 func renderHorizontalBar(value, max, width int) string {
 	if max == 0 {
-		return strings.Repeat("-", width)
+		return strings.Repeat("░", width)
 	}
 	filled := int(float64(value) / float64(max) * float64(width))
 	if filled > width {
 		filled = width
 	}
-	return strings.Repeat("#", filled) + strings.Repeat("-", width-filled)
+	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
 func getLoadIndicator(level string) string {
@@ -476,20 +524,4 @@ func getLoadIndicator(level string) string {
 	default:
 		return "[OK]"
 	}
-}
-
-func getDaysBadge(days int) string {
-	if days >= 7 {
-		return fmt.Sprintf("[!!] %dd", days)
-	} else if days >= 3 {
-		return fmt.Sprintf("[!] %dd", days)
-	}
-	return fmt.Sprintf("%dd", days)
-}
-
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }

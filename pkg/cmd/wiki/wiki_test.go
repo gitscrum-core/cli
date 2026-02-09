@@ -93,9 +93,8 @@ func TestWikiView_Success(t *testing.T) {
 					"uuid":       "page-1",
 					"slug":       "getting-started",
 					"title":      "Getting Started",
-					"content":    "# Getting Started\n\nWelcome to the documentation.",
+					"page":       "# Getting Started\n\nWelcome to the documentation.",
 					"updated_at": "2026-02-07T10:00:00Z",
-					"author":     map[string]interface{}{"name": "Alice"},
 				},
 			}
 			json.NewEncoder(w).Encode(response)
@@ -117,12 +116,12 @@ func TestWikiView_Success(t *testing.T) {
 	}
 	api.DecodeResponse(resp, &result)
 
-	if result.Data.Content == "" {
-		t.Error("expected content, got empty")
+	if result.Data.Page == "" {
+		t.Error("expected page content, got empty")
 	}
 
-	if result.Data.Author.Name != "Alice" {
-		t.Errorf("author = %q, want 'Alice'", result.Data.Author.Name)
+	if result.Data.Title != "Getting Started" {
+		t.Errorf("title = %q, want 'Getting Started'", result.Data.Title)
 	}
 }
 

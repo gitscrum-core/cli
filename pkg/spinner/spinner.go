@@ -1,56 +1,75 @@
-// Package spinner provides loading indicators
+// Package spinner provides modern PTerm loading indicators
 package spinner
 
 import (
-	"time"
-
-	"github.com/briandowns/spinner"
+	"github.com/pterm/pterm"
 )
 
-// Spinner wraps briandowns/spinner with defaults
+// Spinner wraps pterm spinner with GitScrum styling
 type Spinner struct {
-	s *spinner.Spinner
+	s       *pterm.SpinnerPrinter
+	message string
 }
 
 // New creates a new spinner with GitScrum styling
-func New(suffix string) *Spinner {
-	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
-	s.Suffix = " " + suffix
-	s.Color("cyan")
-	return &Spinner{s: s}
+func New(message string) *Spinner {
+	return &Spinner{
+		message: message,
+	}
 }
 
 // Start shows the spinner
 func (sp *Spinner) Start() {
-	sp.s.Start()
+	spinner, _ := pterm.DefaultSpinner.
+		WithSequence("⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷").
+		Start(sp.message)
+	sp.s = spinner
 }
 
 // Stop hides the spinner
 func (sp *Spinner) Stop() {
-	sp.s.Stop()
+	if sp.s != nil {
+		sp.s.Stop()
+	}
 }
 
 // UpdateSuffix changes the spinner text
-func (sp *Spinner) UpdateSuffix(suffix string) {
-	sp.s.Suffix = " " + suffix
+func (sp *Spinner) UpdateSuffix(message string) {
+	if sp.s != nil {
+		sp.s.UpdateText(message)
+	}
 }
 
 // Success stops spinner with success message
 func (sp *Spinner) Success(msg string) {
-	sp.s.FinalMSG = "✓ " + msg + "\n"
-	sp.s.Stop()
+	if sp.s != nil {
+		sp.s.Success(msg)
+	}
 }
 
 // Error stops spinner with error message
 func (sp *Spinner) Error(msg string) {
-	sp.s.FinalMSG = "✗ " + msg + "\n"
-	sp.s.Stop()
+	if sp.s != nil {
+		sp.s.Fail(msg)
+	}
+}
+
+// Warning stops spinner with warning message
+func (sp *Spinner) Warning(msg string) {
+	if sp.s != nil {
+		sp.s.Warning(msg)
+	}
 }
 
 // WithSpinner runs a function with a spinner
 func WithSpinner(msg string, fn func() error) error {
 	sp := New(msg)
 	sp.Start()
-	defer sp.Stop()
-	return fn()
+	err := fn()
+	if err != nil {
+		sp.Error(err.Error())
+		return err
+	}
+	sp.Stop()
+	return nil
 }

@@ -32,22 +32,38 @@ func TestInvoicesList_Success(t *testing.T) {
 			response := map[string]interface{}{
 				"data": []map[string]interface{}{
 					{
-						"uuid":     "inv-1",
-						"code":     "INV-2026-001",
-						"amount":   12500.00,
-						"currency": "USD",
-						"status":   "paid",
-						"due_date": "2026-01-15",
-						"client":   map[string]interface{}{"name": "TechCorp"},
+						"uuid":                 "inv-1",
+						"ref_code":             "INV-2026-001",
+						"series":               "Invoice #001",
+						"gross_total":          12500,
+						"gross_total_formatted": "12,500.00",
+						"status": map[string]interface{}{
+							"id":   1,
+							"name": "Paid",
+						},
+						"currency": map[string]interface{}{
+							"code":   "USD",
+							"symbol": "$",
+						},
+						"payment_due_at": map[string]interface{}{"date": "2026-01-15"},
+						"contact":        map[string]interface{}{"name": "TechCorp", "uuid": "contact-1"},
 					},
 					{
-						"uuid":     "inv-2",
-						"code":     "INV-2026-002",
-						"amount":   8500.00,
-						"currency": "USD",
-						"status":   "overdue",
-						"due_date": "2026-02-01",
-						"client":   map[string]interface{}{"name": "StartupXYZ"},
+						"uuid":                 "inv-2",
+						"ref_code":             "INV-2026-002",
+						"series":               "Invoice #002",
+						"gross_total":          8500,
+						"gross_total_formatted": "8,500.00",
+						"status": map[string]interface{}{
+							"id":   2,
+							"name": "Pending",
+						},
+						"currency": map[string]interface{}{
+							"code":   "USD",
+							"symbol": "$",
+						},
+						"payment_due_at": map[string]interface{}{"date": "2026-02-01"},
+						"contact":        map[string]interface{}{"name": "StartupXYZ", "uuid": "contact-2"},
 					},
 				},
 			}
@@ -74,12 +90,12 @@ func TestInvoicesList_Success(t *testing.T) {
 		t.Fatalf("expected 2 invoices, got %d", len(result.Data))
 	}
 
-	if result.Data[0].Code != "INV-2026-001" {
-		t.Errorf("first invoice code = %q, want 'INV-2026-001'", result.Data[0].Code)
+	if result.Data[0].RefCode != "INV-2026-001" {
+		t.Errorf("first invoice ref_code = %q, want 'INV-2026-001'", result.Data[0].RefCode)
 	}
 
-	if result.Data[1].Status != "overdue" {
-		t.Errorf("second invoice status = %q, want 'overdue'", result.Data[1].Status)
+	if result.Data[1].Status.Name != "Pending" {
+		t.Errorf("second invoice status = %q, want 'Pending'", result.Data[1].Status.Name)
 	}
 }
 
@@ -89,13 +105,21 @@ func TestInvoiceView_Success(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/company-invoices/") {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
-					"uuid":     "inv-1",
-					"code":     "INV-2026-001",
-					"amount":   12500.00,
-					"currency": "USD",
-					"status":   "paid",
-					"due_date": "2026-01-15",
-					"client":   map[string]interface{}{"name": "TechCorp"},
+					"uuid":                 "inv-1",
+					"ref_code":             "INV-2026-001",
+					"series":               "Invoice #001",
+					"gross_total":          12500,
+					"gross_total_formatted": "12,500.00",
+					"status": map[string]interface{}{
+						"id":   1,
+						"name": "Paid",
+					},
+					"currency": map[string]interface{}{
+						"code":   "USD",
+						"symbol": "$",
+					},
+					"payment_due_at": map[string]interface{}{"date": "2026-01-15"},
+					"contact":        map[string]interface{}{"name": "TechCorp", "uuid": "contact-1"},
 				},
 			}
 			json.NewEncoder(w).Encode(response)
@@ -117,8 +141,8 @@ func TestInvoiceView_Success(t *testing.T) {
 	}
 	api.DecodeResponse(resp, &result)
 
-	if result.Data.Amount != 12500.00 {
-		t.Errorf("amount = %.2f, want 12500.00", result.Data.Amount)
+	if result.Data.GrossTotal != 12500 {
+		t.Errorf("gross_total = %d, want 12500", result.Data.GrossTotal)
 	}
 }
 

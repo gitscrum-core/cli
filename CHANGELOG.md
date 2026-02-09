@@ -7,37 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Project configuration via `.gitscrum.yml`
-- `GITSCRUM_ACCESS_TOKEN` environment variable for CI/CD
-- GitHub Actions, GitLab CI, and Bitbucket Pipelines examples
-- Cross-platform install script (`install.sh`)
-- Comprehensive automation examples
+## [1.0.0-beta] - 2026-02-09
 
-### Changed
-- Improved error messages with actionable suggestions
-- Enhanced help text for all commands
-
-### Fixed
-- Timer not detecting task from branch name
-
-## [1.0.0] - 2026-XX-XX
+First public beta release! 🎉
 
 ### Added
-- Initial release
-- OAuth Device Flow authentication
-- Task management commands (list, view, create, update)
-- Time tracking (start, stop, log, report)
-- Sprint analytics (current, burndown)
-- Project listing
-- Git integration (branch detection, task code extraction)
-- Multiple output formats (table, JSON, quiet)
-- Shell completion (bash, zsh, fish, PowerShell)
-- Configuration management
+- **Authentication**: OAuth 2.0 Device Flow for secure login
+- **Task Management**: List, view, create, update, and complete tasks
+- **Time Tracking**: Start/stop timers, log time manually, view reports
+- **Sprint Analytics**: Current sprint KPIs, burndown charts (ASCII)
+- **Git Integration**: Branch detection, task code extraction from branch names
+- **Daily Standups**: View completed tasks, blockers, team status
+- **Project Management**: List projects, view details, switch contexts
+- **Team Collaboration**: Chat, wiki, notifications
+- **Client & Billing**: Manage clients, invoices, proposals
+- **CRM**: Analytics and reports (PRO feature)
+- **Configuration**: Project config via `.gitscrum.yml`
+- **CI/CD Support**: `GITSCRUM_ACCESS_TOKEN` for headless environments
+- **Multiple Output Formats**: Table, JSON, quiet mode
+- **Shell Completion**: Bash, Zsh, Fish, PowerShell
+- **Cross-platform**: Windows, macOS, Linux
+
+### Examples Included
+- GitHub Actions workflows
+- GitLab CI pipelines
+- Bitbucket Pipelines
+- Git hooks (commit-msg, prepare-commit-msg)
+- Automation scripts
 
 ### Security
-- Secure token storage in user home directory
-- OAuth 2.0 authentication
+- OAuth 2.0 Device Authorization Grant (RFC 8628)
+- Secure token storage with restricted permissions
+- No secrets or credentials in codebase
 
-[Unreleased]: https://github.com/gitscrum-core/cli/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/gitscrum-core/cli/releases/tag/v1.0.0
+[Unreleased]: https://github.com/gitscrum-core/cli/compare/v1.0.0-beta...HEAD
+[1.0.0-beta]: https://github.com/gitscrum-core/cli/releases/tag/v1.0.0-beta

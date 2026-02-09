@@ -9,6 +9,8 @@ import (
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdCRM creates the CRM command group
@@ -35,17 +37,21 @@ Without a subcommand, shows the CRM dashboard overview.`,
 
 func runCRMDashboard(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
+
+	sp := spinner.New("Loading CRM dashboard...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/client-flow/dashboard/overview"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -90,55 +96,58 @@ func runCRMDashboard(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	d := result.Data
 
-	fmt.Println("CRM DASHBOARD")
-	fmt.Println(strings.Repeat("═", 60))
-	fmt.Println()
+	ws, _ := f.CurrentWorkspace()
+	if ws != "" {
+		output.Header(fmt.Sprintf("CRM Dashboard (%s)", ws))
+	} else {
+		output.Header("CRM Dashboard")
+	}
 
 	// Summary
-	fmt.Println("SUMMARY")
-	fmt.Printf("  Clients: %d | Active Projects: %d | Total Projects: %d\n",
-		d.Summary.TotalClients, d.Summary.ActiveProjects, d.Summary.TotalProjects)
+	output.SubHeader("Summary")
+	output.KeyValuef("Clients", "%d", d.Summary.TotalClients)
+	output.KeyValuef("Active Projects", "%d / %d", d.Summary.ActiveProjects, d.Summary.TotalProjects)
 	if d.Summary.ProjectsAtRisk > 0 {
-		fmt.Printf("  [!] Projects at Risk: %d\n", d.Summary.ProjectsAtRisk)
+		output.Alertf("%d projects at risk", d.Summary.ProjectsAtRisk)
 	}
-	fmt.Println()
 
 	// Invoices
-	fmt.Println("INVOICES")
-	fmt.Printf("  Paid: %d ($%.2f) | Pending: %d ($%.2f)\n",
-		d.Invoices.Paid, d.Invoices.PaidAmount,
-		d.Invoices.Pending, d.Invoices.PendingAmount)
+	output.SubHeader("Invoices")
+	output.Successf("Paid: %d ($%.2f)", d.Invoices.Paid, d.Invoices.PaidAmount)
+	output.Infof("Pending: %d ($%.2f)", d.Invoices.Pending, d.Invoices.PendingAmount)
 	if d.Invoices.Overdue > 0 {
-		fmt.Printf("  [!] Overdue: %d ($%.2f)\n", d.Invoices.Overdue, d.Invoices.OverdueAmount)
+		output.Warningf("Overdue: %d ($%.2f)", d.Invoices.Overdue, d.Invoices.OverdueAmount)
 	}
-	fmt.Println()
 
 	// Proposals
-	fmt.Println("PROPOSALS")
-	fmt.Printf("  Approved: %d ($%.2f) | Pending: %d ($%.2f)\n",
-		d.Proposals.Approved, d.Proposals.ApprovedValue,
-		d.Proposals.PendingApproval, d.Proposals.PendingValue)
+	output.SubHeader("Proposals")
+	output.Successf("Approved: %d ($%.2f)", d.Proposals.Approved, d.Proposals.ApprovedValue)
+	output.Infof("Pending: %d ($%.2f)", d.Proposals.PendingApproval, d.Proposals.PendingValue)
 	if d.Proposals.ExpiringSoon > 0 {
-		fmt.Printf("  [!] Expiring Soon: %d\n", d.Proposals.ExpiringSoon)
+		output.Warningf("Expiring Soon: %d", d.Proposals.ExpiringSoon)
 	}
-	fmt.Println()
 
 	// Alerts
 	if d.Alerts.OverdueInvoices > 0 || d.Alerts.ExpiringProposals > 0 || d.Alerts.ProjectsAtRisk > 0 {
-		fmt.Println("ALERTS")
+		output.SubHeader("Alerts")
 		if d.Alerts.OverdueInvoices > 0 {
-			fmt.Printf("  [!] %d overdue invoices\n", d.Alerts.OverdueInvoices)
+			output.Warningf("%d overdue invoices", d.Alerts.OverdueInvoices)
 		}
 		if d.Alerts.ExpiringProposals > 0 {
-			fmt.Printf("  [!] %d expiring proposals\n", d.Alerts.ExpiringProposals)
+			output.Warningf("%d expiring proposals", d.Alerts.ExpiringProposals)
 		}
 		if d.Alerts.ProjectsAtRisk > 0 {
-			fmt.Printf("  [!] %d projects at risk\n", d.Alerts.ProjectsAtRisk)
+			output.Warningf("%d projects at risk", d.Alerts.ProjectsAtRisk)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -158,13 +167,18 @@ func runCRMRevenue(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Loading revenue data...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/client-flow/dashboard/revenue-pipeline"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -200,42 +214,42 @@ func runCRMRevenue(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("REVENUE PIPELINE")
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Revenue Pipeline")
 
 	// Invoices Summary
-	fmt.Println("INVOICES BY STATUS:")
+	output.SubHeader("Invoices by Status")
 	for status, data := range result.Data.InvoicesSummary {
-		fmt.Printf("  %-12s %d invoices  $%.2f\n", status+":", data.Count, data.Total)
+		output.KeyValuef(strings.ToUpper(status[:1])+status[1:], "%d invoices — $%.2f", data.Count, data.Total)
 	}
-	fmt.Println()
 
 	// Proposals Summary
-	fmt.Println("PROPOSALS BY STATUS:")
+	output.SubHeader("Proposals by Status")
 	for status, data := range result.Data.ProposalsSummary {
-		fmt.Printf("  %-12s %d proposals $%.2f\n", status+":", data.Count, data.Total)
+		output.KeyValuef(strings.ToUpper(status[:1])+status[1:], "%d proposals — $%.2f", data.Count, data.Total)
 	}
-	fmt.Println()
 
 	// Overdue Invoices
 	if len(result.Data.OverdueInvoices) > 0 {
-		fmt.Println("OVERDUE INVOICES:")
+		output.SubHeader("Overdue Invoices")
 		for _, inv := range result.Data.OverdueInvoices {
-			fmt.Printf("  [!] %s - %s: %s%.2f (%d days overdue)\n",
+			output.Warningf("%s — %s: %s%.2f (%d days overdue)",
 				inv.Series, inv.Client.Name, inv.CurrencySymbol, inv.Amount, inv.DaysOverdue)
 		}
-		fmt.Println()
 	}
 
 	// Monthly Revenue
 	if len(result.Data.MonthlyRevenue) > 0 {
-		fmt.Println("MONTHLY REVENUE:")
+		output.SubHeader("Monthly Revenue")
 		for _, m := range result.Data.MonthlyRevenue {
-			fmt.Printf("  %s: $%.2f (%d invoices)\n", m.Month, m.Total, m.Count)
+			output.KeyValuef(m.Month, "$%.2f (%d invoices)", m.Total, m.Count)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -255,13 +269,18 @@ func runCRMAtRisk(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Loading at-risk clients...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/client-flow/dashboard/clients-at-risk"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -289,37 +308,40 @@ func runCRMAtRisk(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("CLIENTS AT RISK")
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Clients at Risk")
 
 	// Summary
 	s := result.Data.Summary
-	fmt.Printf("Total at risk: %d\n", s.TotalAtRisk)
+	output.KeyValuef("Total at Risk", "%d", s.TotalAtRisk)
 	if s.WithOverdueInvoices > 0 {
-		fmt.Printf("  With overdue invoices: %d\n", s.WithOverdueInvoices)
+		output.Warningf("With overdue invoices: %d", s.WithOverdueInvoices)
 	}
 	if s.WithStalledProjects > 0 {
-		fmt.Printf("  With stalled projects: %d\n", s.WithStalledProjects)
+		output.Warningf("With stalled projects: %d", s.WithStalledProjects)
 	}
 	if s.WithExpiringProposals > 0 {
-		fmt.Printf("  With expiring proposals: %d\n", s.WithExpiringProposals)
+		output.Warningf("With expiring proposals: %d", s.WithExpiringProposals)
 	}
-	fmt.Println()
 
 	if len(result.Data.ClientsAtRisk) == 0 {
-		fmt.Println("No clients at risk")
+		fmt.Println()
+		output.Success("No clients at risk")
 		return nil
 	}
 
+	fmt.Println()
 	for _, c := range result.Data.ClientsAtRisk {
-		fmt.Printf("[!] %s\n", c.Name)
+		output.Warning(c.Name)
 		for _, r := range c.Risks {
-			fmt.Printf("    - %s\n", r.Label)
+			output.Dim("- " + r.Label)
 		}
-		fmt.Println()
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -339,13 +361,18 @@ func runCRMPipeline(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Loading pipeline...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/client-flow/dashboard/pending-approvals"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -378,37 +405,40 @@ func runCRMPipeline(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("PENDING APPROVALS")
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
 
-	s := result.Data.Summary
-	fmt.Printf("Total Pending: %d\n", s.Total)
-	fmt.Printf("  Proposals: %d ($%.2f)\n", s.Proposals, s.ProposalsValue)
-	fmt.Printf("  Invoices: %d ($%.2f)\n", s.Invoices, s.InvoicesValue)
-	fmt.Printf("  Change Requests: %d\n", s.ChangeRequests)
-	fmt.Println()
+	output.Header("Pending Approvals")
+
+	ps := result.Data.Summary
+	output.KeyValuef("Total Pending", "%d", ps.Total)
+	output.KeyValuef("Proposals", "%d ($%.2f)", ps.Proposals, ps.ProposalsValue)
+	output.KeyValuef("Invoices", "%d ($%.2f)", ps.Invoices, ps.InvoicesValue)
+	output.KeyValuef("Change Requests", "%d", ps.ChangeRequests)
 
 	if len(result.Data.All) == 0 {
-		fmt.Println("No pending approvals")
+		fmt.Println()
+		output.Success("No pending approvals")
 		return nil
 	}
 
-	fmt.Println("PENDING ITEMS:")
+	output.SubHeader("Pending Items")
 	for _, item := range result.Data.All {
 		typeLabel := strings.ToUpper(item.Type[:1]) + item.Type[1:]
 		title := item.Title
 		if title == "" {
 			title = item.Code
 		}
-		fmt.Printf("  [%s] %s - %s\n", typeLabel, title, item.Client.Name)
+		output.Bulletf("[%s] %s — %s", typeLabel, title, item.Client.Name)
 		if item.Amount > 0 {
-			fmt.Printf("         %s%.2f | Waiting %d days\n", item.CurrencySymbol, item.Amount, item.DaysWaiting)
+			output.Dimf("%s%.2f │ Waiting %d days", item.CurrencySymbol, item.Amount, item.DaysWaiting)
 		} else {
-			fmt.Printf("         Waiting %d days\n", item.DaysWaiting)
+			output.Dimf("Waiting %d days", item.DaysWaiting)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -428,13 +458,18 @@ func runCRMProjects(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Loading projects health...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/client-flow/dashboard/projects-health"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -467,40 +502,49 @@ func runCRMProjects(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("PROJECTS HEALTH")
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
-
-	s := result.Data.Summary
-	fmt.Printf("Total: %d | Healthy: %d | Warning: %d | Critical: %d\n",
-		s.Total, s.Healthy, s.Warning, s.Critical)
-	if s.OverBudget > 0 || s.AtRisk > 0 {
-		fmt.Printf("Over Budget: %d | At Risk: %d\n", s.OverBudget, s.AtRisk)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
 	}
-	fmt.Println()
+
+	output.Header("Projects Health")
+
+	ps := result.Data.Summary
+	output.Successf("Healthy: %d", ps.Healthy)
+	output.Warningf("Warning: %d", ps.Warning)
+	output.Errorf("Critical: %d", ps.Critical)
+	if ps.OverBudget > 0 || ps.AtRisk > 0 {
+		output.Alertf("Over Budget: %d │ At Risk: %d", ps.OverBudget, ps.AtRisk)
+	}
 
 	if len(result.Data.Projects) == 0 {
-		fmt.Println("No projects found")
+		fmt.Println()
+		output.Empty("No projects found", "")
 		return nil
 	}
 
 	// Show critical and warning projects
+	fmt.Println()
 	for _, p := range result.Data.Projects {
 		if p.HealthStatus == "critical" || p.HealthStatus == "warning" {
-			icon := "[!]"
 			if p.HealthStatus == "critical" {
-				icon = "[!!]"
+				label := p.Name
+				if p.ClientName != "" {
+					label += " (" + p.ClientName + ")"
+				}
+				output.Error(label)
+			} else {
+				label := p.Name
+				if p.ClientName != "" {
+					label += " (" + p.ClientName + ")"
+				}
+				output.Warning(label)
 			}
-			fmt.Printf("%s %s", icon, p.Name)
-			if p.ClientName != "" {
-				fmt.Printf(" (%s)", p.ClientName)
-			}
-			fmt.Println()
-			fmt.Printf("    Progress: %.0f%% | Budget: %.0f%% used (%.1fh / %.1fh)\n",
+			output.Dimf("Progress: %.0f%% │ Budget: %.0f%% used (%.1fh / %.1fh)",
 				p.ProgressPercentage, p.BudgetUsagePercentage, p.HoursUsed, p.BudgetHours)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -520,13 +564,18 @@ func runCRMLeaderboard(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Loading leaderboard...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := "/client-flow/dashboard/leaderboard"
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -550,12 +599,14 @@ func runCRMLeaderboard(f *factory.Factory) error {
 		return err
 	}
 
-	fmt.Println("CLIENT LEADERBOARD")
-	fmt.Println(strings.Repeat("─", 60))
-	fmt.Println()
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header("Client Leaderboard")
 
 	if len(result.Data.Clients) == 0 {
-		fmt.Println("No clients found")
+		output.Empty("No clients found", "Add clients with the GitScrum web app.")
 		return nil
 	}
 
@@ -563,13 +614,13 @@ func runCRMLeaderboard(f *factory.Factory) error {
 		if i >= 10 {
 			break
 		}
-		fmt.Printf("%2d. %s\n", i+1, c.Name)
-		fmt.Printf("    Revenue: $%.2f | Projects: %d active / %d total\n",
+		output.Bulletf("#%d  %s", i+1, c.Name)
+		output.Dimf("Revenue: $%.2f │ Projects: %d active / %d total",
 			c.TotalRevenue, c.ActiveProjects, c.TotalProjects)
-		fmt.Printf("    Reliability: %.0f%% | Avg Payment: %.0f days\n",
+		output.Dimf("Reliability: %.0f%% │ Avg Payment: %.0f days",
 			c.ReliabilityScore*100, c.AvgPaymentDays)
-		fmt.Println()
 	}
 
+	fmt.Println()
 	return nil
 }

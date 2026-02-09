@@ -32,24 +32,28 @@ func TestNotificationsList_Success(t *testing.T) {
 			response := map[string]interface{}{
 				"data": []map[string]interface{}{
 					{
-						"uuid":       "notif-1",
-						"type":       "task_assigned",
-						"title":      "Task assigned to you",
-						"body":       "GS-123: Fix login bug",
-						"read_at":    nil,
-						"created_at": "2026-02-07T10:00:00Z",
-						"data": map[string]interface{}{
-							"task_code":    "GS-123",
-							"project_slug": "web-app",
+						"uuid":     "notif-1",
+						"resource": "issue",
+						"action":   "assigned",
+						"message":  "Task GS-123 was assigned to you",
+						"user": map[string]interface{}{
+							"uuid":     "user-1",
+							"name":     "Alice",
+							"username": "alice",
 						},
+						"created_at": map[string]interface{}{"date": "2026-02-07"},
 					},
 					{
-						"uuid":       "notif-2",
-						"type":       "comment",
-						"title":      "New comment",
-						"body":       "Alice commented on your task",
-						"read_at":    "2026-02-07T09:00:00Z",
-						"created_at": "2026-02-06T15:00:00Z",
+						"uuid":     "notif-2",
+						"resource": "comment",
+						"action":   "created",
+						"message":  "Alice commented on your task",
+						"user": map[string]interface{}{
+							"uuid":     "user-2",
+							"name":     "Bob",
+							"username": "bob",
+						},
+						"created_at": map[string]interface{}{"date": "2026-02-06"},
 					},
 				},
 			}
@@ -76,12 +80,12 @@ func TestNotificationsList_Success(t *testing.T) {
 		t.Fatalf("expected 2 notifications, got %d", len(result.Data))
 	}
 
-	if result.Data[0].ReadAt != "" {
-		t.Error("first notification should be unread")
+	if result.Data[0].Message != "Task GS-123 was assigned to you" {
+		t.Errorf("first notification message = %q, want expected", result.Data[0].Message)
 	}
 
-	if result.Data[1].ReadAt == "" {
-		t.Error("second notification should be read")
+	if result.Data[1].User.Name != "Bob" {
+		t.Errorf("second notification user name = %q, want 'Bob'", result.Data[1].User.Name)
 	}
 }
 

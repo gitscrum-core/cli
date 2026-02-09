@@ -3,13 +3,14 @@ package notifications
 
 import (
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdNotifications creates the notifications command
@@ -37,38 +38,44 @@ Use --unread to show only unread notifications.`,
 	return cmd
 }
 
-// Notification represents a notification
+// FeedUser represents a user in a feed notification
+type FeedUser struct {
+	UUID     string `json:"uuid"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+}
+
+// Notification represents a feed notification (FeedUserResource)
 type Notification struct {
-	UUID      string `json:"uuid"`
-	Type      string `json:"type"`
-	Title     string `json:"title"`
-	Body      string `json:"body"`
-	ReadAt    string `json:"read_at"`
-	CreatedAt string `json:"created_at"`
-	Data      struct {
-		TaskCode    string `json:"task_code,omitempty"`
-		ProjectSlug string `json:"project_slug,omitempty"`
-	} `json:"data"`
+	UUID      string            `json:"uuid"`
+	User      FeedUser          `json:"user"`
+	Resource  string            `json:"resource"`
+	Action    string            `json:"action"`
+	Message   string            `json:"message"`
+	CreatedAt *api.DateResource `json:"created_at"`
 }
 
 func runNotifications(f *factory.Factory, unreadOnly bool) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  Run 'gitscrum auth login' to authenticate")
-		return nil
-	}
-
-	client, err := f.APIClient()
-	if err != nil {
 		return err
 	}
 
-	path := "/notifications"
+	sp := spinner.New("Loading notifications...")
+	sp.Start()
+
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	path := "/feeds/notifications?page=1"
 	if unreadOnly {
-		path += "?unread=true"
+		path += "&unread=true"
 	}
 
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -80,75 +87,59 @@ func runNotifications(f *factory.Factory, unreadOnly bool) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
 		if unreadOnly {
-			fmt.Println("No unread notifications")
+			output.Success(i18n.T("no_unread_notifications"))
 		} else {
-			fmt.Println("No notifications")
+			workspace, _ := f.CurrentWorkspace()
+			output.EmptyContext(i18n.T("no_notifications"), workspace, "", "")
 		}
 		return nil
 	}
 
-	title := "NOTIFICATIONS"
+	title := "Notifications"
 	if unreadOnly {
-		title = "UNREAD NOTIFICATIONS"
+		title = "Unread Notifications"
 	}
-	fmt.Println(title)
-	fmt.Println()
+	output.Header(title)
 
 	for _, n := range result.Data {
-		icon := "*"
-		if n.ReadAt != "" {
-			icon = "-"
+		timestamp := ""
+		if n.CreatedAt != nil {
+			timestamp = n.CreatedAt.FormatDate()
 		}
-		
-		timestamp := formatRelativeTime(n.CreatedAt)
-		
-		fmt.Printf("  %s %s\n", icon, n.Title)
-		if n.Body != "" {
-			body := n.Body
-			if len(body) > 70 {
-				body = body[:70] + "..."
+
+		output.Warningf("● %s", n.Message)
+
+		meta := ""
+		if n.User.Name != "" {
+			meta = n.User.Name
+		}
+		if n.Action != "" {
+			if meta != "" {
+				meta += " • "
 			}
-			fmt.Printf("     %s\n", body)
+			meta += n.Action
 		}
-		fmt.Printf("     %s", timestamp)
-		if n.Data.TaskCode != "" {
-			fmt.Printf(" • %s", n.Data.TaskCode)
+		if timestamp != "" {
+			if meta != "" {
+				meta += " • "
+			}
+			meta += timestamp
 		}
-		fmt.Println()
-		fmt.Println()
+		if meta != "" {
+			output.Dim("  " + meta)
+		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
-func formatRelativeTime(ts string) string {
-	t, err := time.Parse(time.RFC3339, ts)
-	if err != nil {
-		return ts
-	}
-	
-	diff := time.Since(t)
-	
-	if diff < time.Minute {
-		return "just now"
-	}
-	if diff < time.Hour {
-		mins := int(diff.Minutes())
-		return fmt.Sprintf("%dm ago", mins)
-	}
-	if diff < 24*time.Hour {
-		hours := int(diff.Hours())
-		return fmt.Sprintf("%dh ago", hours)
-	}
-	if diff < 7*24*time.Hour {
-		days := int(diff.Hours() / 24)
-		return fmt.Sprintf("%dd ago", days)
-	}
-	
-	return t.Format("Jan 2")
-}
 
 // NewCmdNotificationsRead marks a notification as read
 func NewCmdNotificationsRead(f *factory.Factory) *cobra.Command {
@@ -167,18 +158,23 @@ func runNotificationsRead(f *factory.Factory, id string) error {
 		return err
 	}
 
+	sp := spinner.New("Marking as read...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
-	path := fmt.Sprintf("/notifications/%s/read", id)
+	path := fmt.Sprintf("/feeds/notifications/%s/read", id)
 	_, err = client.Post(path, nil)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Notification marked as read")
+	output.Success("Notification marked as read")
 	return nil
 }
 
@@ -198,17 +194,22 @@ func runNotificationsReadAll(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Marking all as read...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
-	_, err = client.Post("/notifications/read-all", nil)
+	_, err = client.Post("/feeds/notifications/read-all", nil)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("All notifications marked as read")
+	output.Success("All notifications marked as read")
 	return nil
 }
 
@@ -228,17 +229,22 @@ func runNotificationsClear(f *factory.Factory) error {
 		return err
 	}
 
+	sp := spinner.New("Clearing notifications...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
-	_, err = client.Delete("/notifications")
+	_, err = client.Delete("/feeds/notifications")
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("All notifications cleared")
+	output.Success("All notifications cleared")
 	return nil
 }
 
@@ -268,9 +274,12 @@ func runSearch(f *factory.Factory, query, scope string) error {
 		return err
 	}
 
+	sp := spinner.New("Searching...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
@@ -280,6 +289,7 @@ func runSearch(f *factory.Factory, query, scope string) error {
 	}
 
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -304,42 +314,42 @@ func runSearch(f *factory.Factory, query, scope string) error {
 		return err
 	}
 
-	fmt.Printf("Search results for \"%s\":\n", query)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
+	output.Header(fmt.Sprintf("Search results for \"%s\"", query))
 
 	hasResults := false
 
 	if len(result.Data.Tasks) > 0 {
 		hasResults = true
-		fmt.Println("Tasks:")
+		output.SubHeader("Tasks")
 		for _, t := range result.Data.Tasks {
-			fmt.Printf("   [%s] %s\n", t.Code, t.Title)
+			output.Bulletf("[%s] %s", t.Code, t.Title)
 		}
-		fmt.Println()
 	}
 
 	if len(result.Data.Projects) > 0 {
 		hasResults = true
-		fmt.Println("Projects:")
+		output.SubHeader("Projects")
 		for _, p := range result.Data.Projects {
-			fmt.Printf("   %s (%s)\n", p.Name, p.Slug)
+			output.Bulletf("%s (%s)", p.Name, p.Slug)
 		}
-		fmt.Println()
 	}
 
 	if len(result.Data.Wiki) > 0 {
 		hasResults = true
-		fmt.Println("Wiki:")
+		output.SubHeader("Wiki")
 		for _, w := range result.Data.Wiki {
-			fmt.Printf("   %s (%s)\n", w.Title, w.Slug)
+			output.Bulletf("📄 %s (%s)", w.Title, w.Slug)
 		}
-		fmt.Println()
 	}
 
 	if !hasResults {
-		fmt.Println("  No results found")
+		output.Empty("No results found", "")
 	}
 
+	fmt.Println()
 	return nil
 }

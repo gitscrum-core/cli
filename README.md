@@ -10,35 +10,49 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/gitscrum-core/cli/releases"><img src="https://img.shields.io/badge/status-BETA-orange?style=flat-square" alt="Beta"></a>
   <a href="https://github.com/gitscrum-core/cli/releases"><img src="https://img.shields.io/github/v/release/gitscrum-core/cli?style=flat-square&color=000" alt="Release"></a>
-  <a href="https://goreportcard.com/report/github.com/gitscrum-core/cli"><img src="https://img.shields.io/badge/go_report-A+-000?style=flat-square" alt="Go Report"></a>
+  <a href="https://goreportcard.com/report/github.com/gitscrum-core/cli"><img src="https://goreportcard.com/badge/github.com/gitscrum-core/cli?style=flat-square" alt="Go Report"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-000?style=flat-square" alt="MIT License"></a>
-  <a href="https://github.com/gitscrum-core/cli/actions"><img src="https://img.shields.io/badge/tests-passing-000?style=flat-square" alt="Tests"></a>
+  <a href="https://github.com/gitscrum-core/cli/actions/workflows/ci.yml"><img src="https://github.com/gitscrum-core/cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 <br/>
 
 ## Overview
 
-GitScrum CLI gives you full operational access to your [GitScrum](https://gitscrum.com) workspace from the command line. Manage tasks, sprints, time tracking, user stories, epics, kanban workflows, team discussions, wiki, notes, client CRM, invoicing, proposals, budget tracking, analytics dashboards, standup reports, and activity feeds.
+GitScrum CLI gives you full access to your [GitScrum](https://gitscrum.com) workspace from the terminal. Tasks, time tracking, sprints, analytics — everything without leaving your editor.
 
-Everything your team does in the GitScrum, you can now do from your terminal or CI/CD pipeline.
+> **⚠️ BETA**: This CLI is in active development. While fully functional, you may encounter bugs or breaking changes. [Report issues](https://github.com/gitscrum-core/cli/issues) to help us improve!
 
-```
-$ gitscrum tasks current
-GS-1234: Implement user authentication
-Status: In Progress | Sprint: Sprint 12 | Effort: 5 pts
+```bash
+# Your morning in 30 seconds
+$ gitscrum tasks
+CODE      TITLE                              STATUS         EFFORT
+GS-1234   Implement OAuth flow               In Progress    5 pts
+GS-1198   Fix pagination bug                 Todo           2 pts
+GS-1201   Add caching layer                  Blocked        8 pts
 
-$ gitscrum timer start
+$ gitscrum timer start GS-1234
 Timer started for GS-1234 at 09:15
 
-$ gitscrum sprints burndown
-Sprint 12 Burndown (Day 5 of 10)
-║████████████░░░░░░░░░░░░║ 48% complete
-Remaining: 26 pts | Velocity: 5.2 pts/day | On track
+# ... 3 hours of coding ...
 
 $ gitscrum timer stop
-Logged 2h 15m to GS-1234
+Logged 3h 12m to GS-1234
+  Total today: 5h 45m
+
+$ gitscrum sprints burndown
+Sprint 12 — Day 7 of 10
+52 │●
+40 │  ●──●
+30 │       ●──●
+20 │            ●  ← You are here
+10 │
+ 0 └─────────────────
+    M  T  W  T  F
+
+Remaining: 22 pts | Velocity: 5.2/day | On track
 ```
 
 **Git-aware. Team-ready. CI/CD compatible.**
@@ -107,6 +121,8 @@ gitscrum config set project my-project
 | `gitscrum timer` | Start, stop, and log time entries | [timer](docs/commands/timer.md) |
 | `gitscrum sprints` | Sprint management and analytics | [sprints](docs/commands/sprints.md) |
 | `gitscrum projects` | Project listing and details | [projects](docs/commands/projects.md) |
+| `gitscrum standup` | Daily standup and blockers | [standup](docs/commands/standup.md) |
+| `gitscrum analytics` | Sprint and project analytics | [analytics](docs/commands/analytics.md) |
 
 ### Time Tracking
 
@@ -135,37 +151,105 @@ gitscrum config set project my-project
 | `gitscrum sprints current` | Current sprint with KPIs |
 | `gitscrum sprints burndown` | ASCII burndown chart |
 
-### Authentication
+### Team & Collaboration
+
+| Command | Description | Docs |
+|:--------|:------------|:-----|
+| `gitscrum chat` | Team discussions | [chat](docs/commands/chat.md) |
+| `gitscrum wiki` | Project documentation | [wiki](docs/commands/wiki.md) |
+| `gitscrum notifications` | View notifications | [notifications](docs/commands/notifications.md) |
+
+### Clients & Billing
+
+| Command | Description | Docs |
+|:--------|:------------|:-----|
+| `gitscrum clients` | Manage clients | [clients](docs/commands/clients.md) |
+| `gitscrum invoices` | Manage invoices | [invoices](docs/commands/invoices.md) |
+| `gitscrum proposals` | Manage proposals | [proposals](docs/commands/proposals.md) |
+
+### Configuration
 
 | Command | Description | Docs |
 |:--------|:------------|:-----|
 | `gitscrum auth login` | Initiate OAuth flow | [auth](docs/commands/auth.md) |
 | `gitscrum auth logout` | Clear stored credentials | |
 | `gitscrum auth status` | Check authentication status | |
-| `gitscrum auth whoami` | Show authenticated user | |
+| `gitscrum config` | Manage CLI configuration | [config](docs/commands/config.md) |
+| `gitscrum init` | Initialize project configuration | [init](docs/commands/init.md) |
+| `gitscrum workspaces` | List and switch workspaces | [workspaces](docs/commands/workspaces.md) |
+| `gitscrum hooks` | Install/uninstall git hooks | [hooks](docs/commands/hooks.md) |
+
+### CRM (PRO)
+
+| Command | Description | Docs |
+|:--------|:------------|:-----|
+| `gitscrum crm` | CRM analytics and reports | [crm](docs/commands/crm.md) |
 
 Full reference: [docs/commands/](docs/commands/README.md)
 
----
+## Real-World Workflows
 
-## Git Integration
-
-The CLI automatically detects task codes from your git branch:
+### Branch → Code → PR → Done
 
 ```bash
-$ git checkout -b feature/GS-1234-user-auth
-$ gitscrum tasks current
-GS-1234: Implement user authentication
-```
-
-Create branches from tasks:
-
-```bash
+# Pick your task and create a branch
 $ gitscrum tasks branch GS-1234
-Created and switched to: feature/GS-1234-implement-user-auth
+Switched to branch 'feature/GS-1234-implement-oauth'
+
+# Timer auto-starts when you checkout a task branch
+$ gitscrum timer
+Active: GS-1234 | Running: 45m
+
+# After PR is opened
+$ gitscrum tasks update GS-1234 --status "in review"
+GS-1234 moved to In Review
+
+# After merge
+$ gitscrum tasks update GS-1234 --status done
+GS-1234 marked as Done
 ```
 
----
+### Daily Standup
+
+```bash
+$ gitscrum standup
+DAILY STANDUP — Feb 7, 2026
+────────────────────────────────────────
+  Completed yesterday:    4 tasks
+  In progress:            2 tasks
+  Blocked:                1 task
+  
+$ gitscrum standup blockers
+BLOCKERS:
+  [!] GS-1156 — Waiting on API spec (bob)
+```
+
+### Team Time Report
+
+```bash
+$ gitscrum timer report --week --team
+TEAM TIME — This Week
+
+MEMBER      HOURS     TOP PROJECT
+alice       38h 15m   backend-api
+bob         32h 00m   web-app  
+charlie     28h 45m   mobile-app
+
+Total: 99h 00m | Avg: 33h/person
+```
+
+### Git Integration
+
+```bash
+# Branch names auto-detect task codes
+$ git checkout feature/GS-1234-oauth
+$ gitscrum tasks current
+GS-1234: Implement OAuth flow | In Progress | 5 pts
+
+# Create branch from task
+$ gitscrum tasks branch GS-1198
+Created and switched to: fix/GS-1198-pagination-bug
+```
 
 ## Project Configuration
 

@@ -3,12 +3,14 @@ package proposals
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdProposals creates the proposals command group
@@ -33,34 +35,47 @@ Without a subcommand, lists all proposals.`,
 	return cmd
 }
 
-// Proposal represents a proposal
+// Proposal represents a proposal (matches ProposalResource.php)
 type Proposal struct {
-	UUID   string  `json:"uuid"`
-	Code   string  `json:"code"`
-	Title  string  `json:"title"`
-	Status string  `json:"status"`
-	Amount float64 `json:"amount"`
-	Client struct {
+	UUID               string            `json:"uuid"`
+	RefCode            string            `json:"ref_code"`
+	Code               string            `json:"code"`
+	Title              string            `json:"title"`
+	Status             string            `json:"status"`
+	StatusLabel        string            `json:"status_label"`
+	TotalValueFormatted string           `json:"total_value_formatted"`
+	Currency           string            `json:"currency"`
+	ContactCompany     *struct {
 		Name string `json:"name"`
-		Slug string `json:"slug"`
-	} `json:"client"`
-	ExpiresAt string `json:"expires_at"`
+		UUID string `json:"uuid"`
+	} `json:"contact_company"`
+	ClientName         string            `json:"client_name"`
+	ExpiresAt          *api.DateResource `json:"expires_at"`
+	CreatedAt          *api.DateResource `json:"created_at"`
 }
 
 func runProposalsList(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
-
-	client, err := f.APIClient()
+	workspace, err := f.RequireWorkspace()
 	if err != nil {
 		return err
 	}
 
-	path := "/proposals"
+	sp := spinner.New("Loading proposals...")
+	sp.Start()
+
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+
+	path := fmt.Sprintf("/proposals?company_slug=%s", workspace)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -72,43 +87,54 @@ func runProposalsList(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
-		fmt.Println("No proposals found")
+		workspace, _ := f.CurrentWorkspace()
+		output.EmptyContext(i18n.T("no_proposals"), workspace, "", i18n.T("create_proposal_hint"))
 		return nil
 	}
 
-	fmt.Println("PROPOSALS")
-	fmt.Println()
+	output.Header("Proposals")
 
 	for _, p := range result.Data {
-		status := getProposalStatusIndicator(p.Status)
-		fmt.Printf("  %s %s - %s\n", status, p.Code, p.Title)
-		fmt.Printf("     Client: %s\n", p.Client.Name)
-		if p.Amount > 0 {
-			fmt.Printf("     Amount: $%.2f\n", p.Amount)
+		// Use ref_code if available, fallback to Code
+		code := p.RefCode
+		if code == "" {
+			code = p.Code
 		}
-		fmt.Printf("     Status: %s\n", p.Status)
-		fmt.Println()
+
+		switch p.Status {
+		case "approved":
+			output.Successf("✓ %s — %s", code, p.Title)
+		case "rejected":
+			output.Errorf("✗ %s — %s", code, p.Title)
+		case "sent", "viewed":
+			output.Infof("→ %s — %s", code, p.Title)
+		case "expired":
+			output.Warningf("⚠ %s — %s (expired)", code, p.Title)
+		case "converted":
+			output.Successf("⇒ %s — %s (converted)", code, p.Title)
+		default:
+			output.Dimf("○ %s — %s (%s)", code, p.Title, p.StatusLabel)
+		}
+
+		clientName := p.ClientName
+		if clientName == "" && p.ContactCompany != nil {
+			clientName = p.ContactCompany.Name
+		}
+		details := fmt.Sprintf("   Client: %s", clientName)
+		if p.TotalValueFormatted != "" {
+			details += fmt.Sprintf(" │ %s %s", p.Currency, p.TotalValueFormatted)
+		}
+		output.Dim(details)
 	}
 
+	fmt.Println()
+	output.Dimf("View details: gitscrum proposals view <code>")
 	return nil
-}
-
-func getProposalStatusIndicator(status string) string {
-	switch status {
-	case "accepted":
-		return "[OK]"
-	case "sent":
-		return "[->]"
-	case "declined":
-		return "[X]"
-	case "draft":
-		return "[D]"
-	case "expired":
-		return "[!]"
-	default:
-		return "[-]"
-	}
 }
 
 // NewCmdProposalsView shows proposal details
@@ -128,14 +154,18 @@ func runProposalsView(f *factory.Factory, code string) error {
 		return err
 	}
 
+	sp := spinner.New("Loading proposal...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/proposals/%s", code)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -147,20 +177,44 @@ func runProposalsView(f *factory.Factory, code string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	p := result.Data
 
-	fmt.Printf("PROPOSAL %s\n", p.Code)
-	fmt.Println(strings.Repeat("-", 50))
-	fmt.Printf("\nTitle: %s\n", p.Title)
-	fmt.Printf("Client: %s\n", p.Client.Name)
-	fmt.Printf("Status: %s %s\n", getProposalStatusIndicator(p.Status), p.Status)
-	if p.Amount > 0 {
-		fmt.Printf("Amount: $%.2f\n", p.Amount)
+	output.Header(fmt.Sprintf("Proposal %s", p.Code))
+
+	output.KeyValue("Title", p.Title)
+	clientName := p.ClientName
+	if clientName == "" && p.ContactCompany != nil {
+		clientName = p.ContactCompany.Name
 	}
-	if p.ExpiresAt != "" {
-		fmt.Printf("Expires: %s\n", p.ExpiresAt)
+	output.KeyValue("Client", clientName)
+
+	switch p.Status {
+	case "approved":
+		output.Success("Status: Approved")
+	case "rejected":
+		output.Error("Status: Rejected")
+	case "sent", "viewed":
+		output.Info("Status: " + p.StatusLabel)
+	case "expired":
+		output.Warning("Status: Expired")
+	case "converted":
+		output.Success("Status: Converted")
+	default:
+		output.KeyValue("Status", p.StatusLabel)
 	}
 
+	if p.TotalValueFormatted != "" {
+		output.KeyValuef("Amount", "%s %s", p.Currency, p.TotalValueFormatted)
+	}
+	if p.ExpiresAt != nil {
+		output.KeyValue("Expires", p.ExpiresAt.FormatDate())
+	}
+
+	fmt.Println()
 	return nil
 }
 
@@ -190,9 +244,12 @@ func runProposalsCreate(f *factory.Factory, title, clientSlug string, amount flo
 		return err
 	}
 
+	sp := spinner.New("Creating proposal...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
@@ -206,6 +263,7 @@ func runProposalsCreate(f *factory.Factory, title, clientSlug string, amount flo
 
 	path := "/proposals"
 	resp, err := client.Post(path, body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -217,9 +275,13 @@ func runProposalsCreate(f *factory.Factory, title, clientSlug string, amount flo
 		return err
 	}
 
-	fmt.Printf("Proposal created: %s\n", result.Data.Code)
-	fmt.Printf("  Title: %s\n", result.Data.Title)
-	fmt.Printf("  Client: %s\n", result.Data.Client.Name)
+	output.Successf("Proposal created: %s", result.Data.Code)
+	output.KeyValue("Title", result.Data.Title)
+	createClientName := result.Data.ClientName
+	if createClientName == "" && result.Data.ContactCompany != nil {
+		createClientName = result.Data.ContactCompany.Name
+	}
+	output.KeyValue("Client", createClientName)
 
 	return nil
 }
@@ -241,19 +303,23 @@ func runProposalsSend(f *factory.Factory, code string) error {
 		return err
 	}
 
+	sp := spinner.New("Sending proposal...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/proposals/%s/send", code)
 	_, err = client.Post(path, nil)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Proposal %s sent to client\n", code)
+	output.Successf("Proposal %s sent to client", code)
 	return nil
 }
 
@@ -261,7 +327,7 @@ func runProposalsSend(f *factory.Factory, code string) error {
 func NewCmdProposalsConvert(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "convert <code>",
-		Short: "Convert accepted proposal to project",
+		Short: "Convert approved proposal to project",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runProposalsConvert(f, args[0])
@@ -274,14 +340,18 @@ func runProposalsConvert(f *factory.Factory, code string) error {
 		return err
 	}
 
+	sp := spinner.New("Converting proposal...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/proposals/%s/convert-to-project", code)
 	resp, err := client.Post(path, nil)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -298,8 +368,8 @@ func runProposalsConvert(f *factory.Factory, code string) error {
 		return err
 	}
 
-	fmt.Printf("Proposal converted to project: %s\n", result.Data.Project.Name)
-	fmt.Printf("  Project slug: %s\n", result.Data.Project.Slug)
+	output.Successf("Proposal converted to project: %s", result.Data.Project.Name)
+	output.KeyValue("Slug", result.Data.Project.Slug)
 
 	return nil
 }

@@ -1,90 +1,66 @@
-// Package projects provides project commands for GitScrum CLI
+// Package projects provides project management commands for GitScrum CLI
 package projects
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/i18n"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
-// NewCmdProjects creates the projects command group
 func NewCmdProjects(f *factory.Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "projects [command]",
-		Short: "Manage projects",
-		Long: `View and manage projects in GitScrum.
-
-List projects, view details, check statistics, and manage team members.
-Projects organize your tasks, sprints, and wiki within a workspace.
-
-Without a subcommand, lists projects in the current workspace.`,
-		Example: `  # List all projects
-  gitscrum projects
-
-  # View project details
-  gitscrum projects view my-project
-
-  # View project statistics
-  gitscrum projects stats my-project
-
-  # List project members
-  gitscrum projects members my-project
-
-  # Create a new project
-  gitscrum projects create -n "My Project" -d "Description"
-
-  # Switch default project
-  gitscrum projects switch my-project`,
+		Use:     "projects [command]",
+		Short:   "Manage projects",
+		Long:    "View and manage projects in your workspace.\n\nWithout a subcommand, lists all projects.",
 		Aliases: []string{"project", "proj"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runProjectsList(f)
 		},
 	}
-
 	cmd.AddCommand(NewCmdProjectsView(f))
 	cmd.AddCommand(NewCmdProjectsStats(f))
 	cmd.AddCommand(NewCmdProjectsCreate(f))
 	cmd.AddCommand(NewCmdProjectsMembers(f))
 	cmd.AddCommand(NewCmdProjectsSwitch(f))
-
 	return cmd
 }
 
-// Project represents a project
 type Project struct {
-	UUID        string `json:"uuid"`
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
-	TotalTasks  int    `json:"total_tasks"`
-	OpenTasks   int    `json:"open_tasks"`
-	Members     int    `json:"members_count"`
+	UUID         string `json:"uuid"`
+	Slug         string `json:"slug"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Status       string `json:"status"`
+	TasksCount   int    `json:"tasks_count"`
+	MembersCount int    `json:"members_count"`
+	IsActive     bool   `json:"is_active"`
 }
 
 func runProjectsList(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  Run 'gitscrum auth login' to authenticate")
-		return nil
+		return err
 	}
-
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required. Use -w flag or set default with 'gitscrum config set workspace'")
-	}
-
-	client, err := f.APIClient()
+	workspace, err := f.RequireWorkspace()
 	if err != nil {
 		return err
 	}
 
-	path := "/projects"
+	sp := spinner.New("Loading projects...")
+	sp.Start()
+	client, err := f.APIClient()
+	if err != nil {
+		sp.Stop()
+		return err
+	}
+	path := fmt.Sprintf("/projects?company_slug=%s", workspace)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -95,46 +71,38 @@ func runProjectsList(f *factory.Factory) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	if len(result.Data) == 0 {
-		fmt.Println("No projects found in this workspace")
-		return nil
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
 	}
 
+	if len(result.Data) == 0 {
+		workspace, _ := f.CurrentWorkspace()
+		output.EmptyContext(i18n.T("no_projects"), workspace, "", i18n.T("create_project_hint"))
+		return nil
+	}
+	output.Header("Projects")
 	currentProject, _ := f.CurrentProject()
-
-	fmt.Printf("Projects in %s:\n\n", workspace)
-
 	for _, p := range result.Data {
 		marker := "  "
 		if p.Slug == currentProject {
-			marker = "▶ "
+			marker = "▸ "
 		}
-		
-		status := "*"
-		if p.Status == "archived" {
-			status = "[archived]"
+		if p.IsActive {
+			output.Successf("%s%s", marker, p.Name)
+		} else {
+			output.Dimf("%s%s (inactive)", marker, p.Name)
 		}
-		
-		fmt.Printf("%s%s %s\n", marker, status, p.Name)
-		fmt.Printf("     Slug: %s\n", p.Slug)
-		if p.TotalTasks > 0 {
-			fmt.Printf("     %d tasks (%d open)\n", p.TotalTasks, p.OpenTasks)
-		}
-		if p.Members > 0 {
-			fmt.Printf("     %d members\n", p.Members)
-		}
-		fmt.Println()
+		output.Dimf("  %d tasks · %d members", p.TasksCount, p.MembersCount)
 	}
-
+	fmt.Println()
 	return nil
 }
 
-// NewCmdProjectsView shows project details
 func NewCmdProjectsView(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "view [slug]",
 		Short: "View project details",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := ""
 			if len(args) > 0 {
@@ -149,23 +117,24 @@ func runProjectsView(f *factory.Factory, slug string) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
-	workspace, _ := f.CurrentWorkspace()
 	if slug == "" {
-		slug, _ = f.CurrentProject()
+		var err error
+		slug, err = f.RequireProject()
+		if err != nil {
+			return err
+		}
 	}
 
-	if workspace == "" || slug == "" {
-		return fmt.Errorf("workspace and project required")
-	}
-
+	sp := spinner.New("Loading project...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
-
 	path := fmt.Sprintf("/projects/%s", slug)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -176,27 +145,29 @@ func runProjectsView(f *factory.Factory, slug string) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
 
 	p := result.Data
-
-	fmt.Printf("%s\n", p.Name)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Printf("\nSlug: %s\n", p.Slug)
-	fmt.Printf("Status: %s\n", p.Status)
+	output.Header(p.Name)
 	if p.Description != "" {
-		fmt.Printf("\n%s\n", p.Description)
+		output.Dim(p.Description)
+		fmt.Println()
 	}
-	fmt.Printf("\nTasks: %d total, %d open\n", p.TotalTasks, p.OpenTasks)
-	fmt.Printf("Members: %d\n", p.Members)
-
+	output.KeyValue("Slug", p.Slug)
+	output.KeyValue("Status", p.Status)
+	output.KeyValuef("Tasks", "%d", p.TasksCount)
+	output.KeyValuef("Members", "%d", p.MembersCount)
+	fmt.Println()
 	return nil
 }
 
-// NewCmdProjectsStats shows project statistics
 func NewCmdProjectsStats(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stats [slug]",
 		Short: "Show project statistics",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := ""
 			if len(args) > 0 {
@@ -211,63 +182,65 @@ func runProjectsStats(f *factory.Factory, slug string) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
-
 	if slug == "" {
-		slug, _ = f.CurrentProject()
+		var err error
+		slug, err = f.RequireProject()
+		if err != nil {
+			return err
+		}
 	}
 
+	sp := spinner.New("Loading statistics...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
-
 	path := fmt.Sprintf("/projects/%s/stats", slug)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 
 	var result struct {
 		Data struct {
-			TotalTasks     int `json:"total_tasks"`
-			CompletedTasks int `json:"completed_tasks"`
-			OpenTasks      int `json:"open_tasks"`
-			TotalTime      int `json:"total_time_minutes"`
-			ActiveSprints  int `json:"active_sprints"`
-			TotalMembers   int `json:"total_members"`
+			TotalTasks     int     `json:"total_tasks"`
+			CompletedTasks int     `json:"completed_tasks"`
+			OpenTasks      int     `json:"open_tasks"`
+			OverdueTasks   int     `json:"overdue_tasks"`
+			TotalMembers   int     `json:"total_members"`
+			TotalSprints   int     `json:"total_sprints"`
+			CompletionRate float64 `json:"completion_rate"`
+			AvgCycleTime   float64 `json:"avg_cycle_time"`
 		} `json:"data"`
 	}
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	s := result.Data
-
-	fmt.Printf("PROJECT STATISTICS: %s\n", slug)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
-	
-	if s.TotalTasks > 0 {
-		progress := float64(s.CompletedTasks) / float64(s.TotalTasks) * 100
-		fmt.Printf("Tasks:      %d total, %d completed (%.0f%%)\n", s.TotalTasks, s.CompletedTasks, progress)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
 	}
-	fmt.Printf("Open:       %d tasks\n", s.OpenTasks)
-	
-	hours := s.TotalTime / 60
-	mins := s.TotalTime % 60
-	fmt.Printf("Total Time: %dh %dm\n", hours, mins)
-	
-	fmt.Printf("Sprints:    %d active\n", s.ActiveSprints)
-	fmt.Printf("Members:    %d\n", s.TotalMembers)
 
+	d := result.Data
+	output.Header(fmt.Sprintf("Project Statistics — %s", slug))
+	output.KeyValuef("Total Tasks", "%d", d.TotalTasks)
+	output.KeyValuef("Completed", "%d", d.CompletedTasks)
+	output.KeyValuef("Open", "%d", d.OpenTasks)
+	if d.OverdueTasks > 0 {
+		output.Warningf("Overdue: %d", d.OverdueTasks)
+	}
+	output.KeyValuef("Completion Rate", "%.1f%%", d.CompletionRate)
+	output.KeyValuef("Avg Cycle Time", "%.1f days", d.AvgCycleTime)
+	output.KeyValuef("Members", "%d", d.TotalMembers)
+	output.KeyValuef("Sprints", "%d", d.TotalSprints)
+	fmt.Println()
 	return nil
 }
 
-// NewCmdProjectsCreate creates a new project
 func NewCmdProjectsCreate(f *factory.Factory) *cobra.Command {
 	var description string
-
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create a new project",
@@ -276,9 +249,7 @@ func NewCmdProjectsCreate(f *factory.Factory) *cobra.Command {
 			return runProjectsCreate(f, args[0], description)
 		},
 	}
-
 	cmd.Flags().StringVarP(&description, "description", "d", "", "Project description")
-
 	return cmd
 }
 
@@ -287,25 +258,19 @@ func runProjectsCreate(f *factory.Factory, name, description string) error {
 		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required")
-	}
-
+	sp := spinner.New("Creating project...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
-
 	body := map[string]interface{}{
-		"name": name,
+		"name":        name,
+		"description": description,
 	}
-	if description != "" {
-		body["description"] = description
-	}
-
-	path := "/projects"
-	resp, err := client.Post(path, body)
+	resp, err := client.Post("/projects", body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -316,20 +281,19 @@ func runProjectsCreate(f *factory.Factory, name, description string) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	fmt.Printf("Project created: %s\n", result.Data.Name)
-	fmt.Printf("  Slug: %s\n", result.Data.Slug)
-	fmt.Println()
-	fmt.Printf("Set as default: gitscrum config set project %s\n", result.Data.Slug)
-
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+	output.Successf("Project created: %s", result.Data.Name)
+	output.Dimf("Slug: %s", result.Data.Slug)
 	return nil
 }
 
-// NewCmdProjectsMembers shows project members
 func NewCmdProjectsMembers(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
 		Use:   "members [slug]",
 		Short: "List project members",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := ""
 			if len(args) > 0 {
@@ -344,19 +308,24 @@ func runProjectsMembers(f *factory.Factory, slug string) error {
 	if err := f.RequireAuth(); err != nil {
 		return err
 	}
-
-
 	if slug == "" {
-		slug, _ = f.CurrentProject()
+		var err error
+		slug, err = f.RequireProject()
+		if err != nil {
+			return err
+		}
 	}
 
+	sp := spinner.New("Loading members...")
+	sp.Start()
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
-
-	path := fmt.Sprintf("/project-members/%s/members", slug)
+	path := fmt.Sprintf("/projects/%s/members", slug)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -373,33 +342,26 @@ func runProjectsMembers(f *factory.Factory, slug string) error {
 	if err := api.DecodeResponse(resp, &result); err != nil {
 		return err
 	}
-
-	fmt.Printf("MEMBERS OF %s:\n\n", slug)
-
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+	output.Header(fmt.Sprintf("Members — %s", slug))
 	if len(result.Data) == 0 {
-		fmt.Println("  No members found")
+		output.Empty("No members", "")
 		return nil
 	}
-
 	for _, m := range result.Data {
-		role := ""
-		if m.Role != "" {
-			role = fmt.Sprintf(" (%s)", m.Role)
-		}
-		fmt.Printf("  • %s%s\n", m.Name, role)
-		fmt.Printf("    %s\n\n", m.Email)
+		output.Bulletf("%s (%s) — %s", m.Name, m.Email, m.Role)
 	}
-
+	fmt.Println()
 	return nil
 }
 
-// NewCmdProjectsSwitch switches to a project
 func NewCmdProjectsSwitch(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:     "switch <slug>",
-		Short:   "Switch to a project (set as default)",
-		Aliases: []string{"use"},
-		Args:    cobra.ExactArgs(1),
+		Use:   "switch <slug>",
+		Short: "Switch to a different project",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runProjectsSwitch(f, args[0])
 		},
@@ -407,6 +369,10 @@ func NewCmdProjectsSwitch(f *factory.Factory) *cobra.Command {
 }
 
 func runProjectsSwitch(f *factory.Factory, slug string) error {
+	if err := f.RequireAuth(); err != nil {
+		return err
+	}
+
 	cfg, err := f.Config()
 	if err != nil {
 		return err
@@ -417,6 +383,6 @@ func runProjectsSwitch(f *factory.Factory, slug string) error {
 		return err
 	}
 
-	fmt.Printf("Switched to project: %s\n", slug)
+	output.Successf("Switched to project: %s", slug)
 	return nil
 }

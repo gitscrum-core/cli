@@ -10,7 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	clierrors "github.com/gitscrum-core/cli/pkg/errors"
 	"github.com/gitscrum-core/cli/pkg/git"
+	"github.com/gitscrum-core/cli/pkg/output"
 )
 
 // NewCmdHooks creates the hooks command group
@@ -63,7 +65,7 @@ func runHooksInstall(f *factory.Factory, all, commitMsg, postCommit, prePush boo
 	// Check if in git repo
 	gitCtx, err := git.NewContext(".")
 	if err != nil {
-		return fmt.Errorf("not in a git repository")
+		return clierrors.ErrNotInGitRepo
 	}
 
 	hooksDir := filepath.Join(gitCtx.RootPath, ".git", "hooks")
@@ -78,41 +80,40 @@ func runHooksInstall(f *factory.Factory, all, commitMsg, postCommit, prePush boo
 		prePush = true
 	}
 
-	fmt.Println("🪝 Installing git hooks...")
-	fmt.Println()
+	output.Header("Installing Git Hooks")
 
 	installed := 0
 
 	if commitMsg {
 		if err := installHook(hooksDir, "commit-msg", commitMsgHook); err != nil {
-			fmt.Printf("  ⚠️  commit-msg: %v\n", err)
+			output.Warningf("commit-msg: %v", err)
 		} else {
-			fmt.Println("  ✓ commit-msg")
+			output.Successf("commit-msg installed")
 			installed++
 		}
 	}
 
 	if postCommit {
 		if err := installHook(hooksDir, "post-commit", postCommitHook); err != nil {
-			fmt.Printf("  ⚠️  post-commit: %v\n", err)
+			output.Warningf("post-commit: %v", err)
 		} else {
-			fmt.Println("  ✓ post-commit")
+			output.Successf("post-commit installed")
 			installed++
 		}
 	}
 
 	if prePush {
 		if err := installHook(hooksDir, "pre-push", prePushHook); err != nil {
-			fmt.Printf("  ⚠️  pre-push: %v\n", err)
+			output.Warningf("pre-push: %v", err)
 		} else {
-			fmt.Println("  ✓ pre-push")
+			output.Successf("pre-push installed")
 			installed++
 		}
 	}
 
 	fmt.Println()
 	if installed > 0 {
-		fmt.Printf("✅ Installed %d hook(s)\n", installed)
+		output.Successf("Installed %d hook(s)", installed)
 	}
 
 	return nil
@@ -150,14 +151,13 @@ func NewCmdHooksUninstall(f *factory.Factory) *cobra.Command {
 func runHooksUninstall(f *factory.Factory) error {
 	gitCtx, err := git.NewContext(".")
 	if err != nil {
-		return fmt.Errorf("not in a git repository")
+		return clierrors.ErrNotInGitRepo
 	}
 
 	hooksDir := filepath.Join(gitCtx.RootPath, ".git", "hooks")
 	hooks := []string{"commit-msg", "post-commit", "pre-push"}
 
-	fmt.Println("🪝 Uninstalling git hooks...")
-	fmt.Println()
+	output.Header("Uninstalling Git Hooks")
 
 	removed := 0
 	for _, name := range hooks {
@@ -189,16 +189,16 @@ func runHooksUninstall(f *factory.Factory) error {
 			} else {
 				os.WriteFile(hookPath, []byte(strings.Join(newLines, "\n")), 0755)
 			}
-			fmt.Printf("  ✓ %s removed\n", name)
+			output.Successf("%s removed", name)
 			removed++
 		}
 	}
 
 	fmt.Println()
 	if removed > 0 {
-		fmt.Printf("✅ Removed %d hook(s)\n", removed)
+		output.Successf("Removed %d hook(s)", removed)
 	} else {
-		fmt.Println("No GitScrum hooks found")
+		output.Info("No GitScrum hooks found")
 	}
 
 	return nil

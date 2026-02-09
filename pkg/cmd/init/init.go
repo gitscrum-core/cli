@@ -4,14 +4,15 @@ package init
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
 	"github.com/gitscrum-core/cli/pkg/config"
 	"github.com/gitscrum-core/cli/pkg/config/projectconfig"
 	"github.com/gitscrum-core/cli/pkg/git"
+	"github.com/gitscrum-core/cli/pkg/output"
 )
 
 // NewCmdInit creates the init command
@@ -45,42 +46,37 @@ This command will:
 }
 
 func runInit(f *factory.Factory, workspace, project string, skipAuth bool) error {
-	green := color.New(color.FgGreen, color.Bold)
-	cyan := color.New(color.FgCyan)
-	yellow := color.New(color.FgYellow)
-	
-	cyan.Println("Initializing GitScrum CLI...")
-	fmt.Println()
+	output.Header("Initializing GitScrum CLI")
 
 	// Step 1: Detect git repository
-	fmt.Print("Checking git repository... ")
+	fmt.Print("  Checking git repository... ")
 	gitCtx, err := git.NewContext(".")
 	if err != nil {
-		yellow.Println("[!] Not found")
-		fmt.Println("   This directory is not a git repository.")
-		fmt.Println("   GitScrum can still work, but git-aware features will be disabled.")
+		output.Warning("Not found")
+		output.Dim("  This directory is not a git repository.")
+		output.Dim("  GitScrum can still work, but git-aware features will be disabled.")
 	} else {
-		green.Println("ok")
-		fmt.Printf("   Repository: %s\n", gitCtx.RepoFullName)
-		fmt.Printf("   Provider: %s\n", gitCtx.Provider)
-		fmt.Printf("   Branch: %s\n", gitCtx.Branch)
+		output.Success("ok")
+		output.KeyValue("Repository", gitCtx.RepoFullName)
+		output.KeyValue("Provider", gitCtx.Provider)
+		output.KeyValue("Branch", gitCtx.Branch)
 	}
 	fmt.Println()
 
 	// Step 2: Check authentication
 	if !skipAuth {
-		fmt.Print("Checking authentication... ")
+		fmt.Print("  Checking authentication... ")
 		if f.IsAuthenticated() {
-			green.Println("ok")
+			output.Success("ok")
 		} else {
-			yellow.Println("[!] Not authenticated")
-			fmt.Println("   Run 'gitscrum auth login' to authenticate")
+			output.Warning("Not authenticated")
+			output.Infof("Run 'gitscrum auth login' to authenticate")
 		}
 		fmt.Println()
 	}
 
 	// Step 3: Set up global configuration
-	fmt.Println("Global Configuration:")
+	output.SubHeader("Global Configuration")
 
 	cfg, err := f.Config()
 	if err != nil {
@@ -93,7 +89,7 @@ func runInit(f *factory.Factory, workspace, project string, skipAuth bool) error
 	if project != "" {
 		cfg.Project = project
 	}
-	
+
 	// Use global config values if flags not provided
 	if workspace == "" {
 		workspace = cfg.Workspace
@@ -102,8 +98,8 @@ func runInit(f *factory.Factory, workspace, project string, skipAuth bool) error
 		project = cfg.Project
 	}
 
-	fmt.Printf("   Workspace: %s\n", valueOrNotSet(cfg.Workspace))
-	fmt.Printf("   Project:   %s\n", valueOrNotSet(cfg.Project))
+	output.KeyValue("Workspace", valueOrNotSet(cfg.Workspace))
+	output.KeyValue("Project", valueOrNotSet(cfg.Project))
 
 	// Save global config if we have updates
 	if workspace != "" || project != "" {
@@ -114,30 +110,30 @@ func runInit(f *factory.Factory, workspace, project string, skipAuth bool) error
 	fmt.Println()
 
 	// Step 4: Create .gitscrum.yml project config
-	fmt.Print("Creating project config... ")
-	
+	fmt.Print("  Creating project config... ")
+
 	existingPath := projectconfig.GetConfigPath()
 	if existingPath != "" {
-		yellow.Println("[exists]")
-		fmt.Printf("   Found: %s\n", existingPath)
+		output.Warning("exists")
+		output.Dimf("Found: %s", existingPath)
 	} else if workspace != "" {
 		// Create project config
 		projCfg, err := projectconfig.Init(workspace, project)
 		if err != nil {
-			yellow.Printf("[!] Failed: %v\n", err)
+			output.Warningf("Failed: %v", err)
 		} else {
-			green.Println("ok")
-			fmt.Printf("   Created: %s\n", projectconfig.ConfigFileName)
+			output.Success("ok")
+			output.Dimf("Created: %s", projectconfig.ConfigFileName)
 			fmt.Println()
-			fmt.Println("   Project Config Settings:")
-			fmt.Printf("     Branch prefix:     %s/\n", projCfg.Branch.DefaultPrefix)
-			fmt.Printf("     Prepend task code: %v\n", projCfg.Hooks.PrependTaskCode)
-			fmt.Printf("     Auto-timer:        %v\n", projCfg.Timer.AutoStart)
-			fmt.Printf("     Complete on merge: %v\n", projCfg.Automation.CompleteOnMerge)
+			output.SubHeader("Project Config Settings")
+			output.KeyValuef("Branch prefix", "%s/", projCfg.Branch.DefaultPrefix)
+			output.KeyValuef("Prepend task code", "%v", projCfg.Hooks.PrependTaskCode)
+			output.KeyValuef("Auto-timer", "%v", projCfg.Timer.AutoStart)
+			output.KeyValuef("Complete on merge", "%v", projCfg.Automation.CompleteOnMerge)
 		}
 	} else {
-		yellow.Println("[skip]")
-		fmt.Println("   Set workspace first: gitscrum config set workspace <slug>")
+		output.Info("skip")
+		output.Infof("Set workspace first: gitscrum config set workspace <slug>")
 	}
 	fmt.Println()
 
@@ -146,17 +142,17 @@ func runInit(f *factory.Factory, workspace, project string, skipAuth bool) error
 		gitscrumDir := ".gitscrum"
 		if _, err := os.Stat(gitscrumDir); os.IsNotExist(err) {
 			if err := os.MkdirAll(gitscrumDir, 0755); err == nil {
-				fmt.Printf("Created %s/ directory (local cache)\n", gitscrumDir)
+				output.Infof("Created %s/ directory (local cache)", gitscrumDir)
 
 				// Add to .gitignore if not present
 				gitignore := ".gitignore"
 				content, _ := os.ReadFile(gitignore)
-				if !contains(string(content), ".gitscrum/") {
+				if !strings.Contains(string(content), ".gitscrum/") {
 					file, err := os.OpenFile(gitignore, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 					if err == nil {
 						file.WriteString("\n# GitScrum CLI cache\n.gitscrum/\n")
 						file.Close()
-						fmt.Println("   Added .gitscrum/ to .gitignore")
+						output.Dim("  Added .gitscrum/ to .gitignore")
 					}
 				}
 				fmt.Println()
@@ -164,27 +160,28 @@ func runInit(f *factory.Factory, workspace, project string, skipAuth bool) error
 		}
 	}
 
-	green.Println("✅ GitScrum CLI initialized!")
+	output.Success("GitScrum CLI initialized!")
 	fmt.Println()
-	fmt.Println("Next steps:")
-	
+	output.SubHeader("Next Steps")
+
 	step := 1
 	if !f.IsAuthenticated() {
-		fmt.Printf("  %d. gitscrum auth login     # Authenticate\n", step)
+		output.Bulletf("%d. gitscrum auth login     # Authenticate", step)
 		step++
 	}
 	if cfg.Workspace == "" {
-		fmt.Printf("  %d. gitscrum config set workspace <slug>\n", step)
+		output.Bulletf("%d. gitscrum config set workspace <slug>", step)
 		step++
 	}
 	if existingPath == "" && workspace != "" {
-		fmt.Printf("  %d. Review and commit .gitscrum.yml\n", step)
+		output.Bulletf("%d. Review and commit .gitscrum.yml", step)
 		step++
 	}
-	fmt.Printf("  %d. gitscrum tasks          # View your tasks\n", step)
+	output.Bulletf("%d. gitscrum tasks          # View your tasks", step)
 	step++
-	fmt.Printf("  %d. gitscrum hooks install  # Install git hooks (optional)\n", step)
+	output.Bulletf("%d. gitscrum hooks install  # Install git hooks (optional)", step)
 
+	fmt.Println()
 	return nil
 }
 
@@ -193,8 +190,4 @@ func valueOrNotSet(s string) string {
 		return "(not set)"
 	}
 	return s
-}
-
-func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr)))
 }

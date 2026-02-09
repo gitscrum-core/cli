@@ -34,7 +34,8 @@ type Context struct {
 	RepoFullName string
 }
 
-// TaskCodePattern matches task codes like GS-123, TK-456
+// TaskCodePattern matches task codes like ABC-123
+// Each GitScrum project has its own prefix (e.g., GS, WEB, API)
 var TaskCodePattern = regexp.MustCompile(`([A-Z]{2,5})-(\d+)`)
 
 // ResolveContext detects git context from current directory
@@ -79,8 +80,9 @@ func NewContext(path string) (*Context, error) {
 }
 
 // extractTaskCode extracts task code from branch name
+// The prefix is project-specific and configured in GitScrum settings
 // Examples: feature/GS-123-fix-bug -> GS-123
-//           bugfix/TK-456-auth-issue -> TK-456
+//           bugfix/WEB-456-auth    -> WEB-456
 func extractTaskCode(branch string) string {
 	matches := TaskCodePattern.FindStringSubmatch(branch)
 	if len(matches) >= 3 {

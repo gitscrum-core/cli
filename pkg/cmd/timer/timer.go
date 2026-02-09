@@ -4,12 +4,15 @@ package timer
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gitscrum-core/cli/pkg/api"
 	"github.com/gitscrum-core/cli/pkg/cmd/factory"
+	"github.com/gitscrum-core/cli/pkg/output"
+	"github.com/gitscrum-core/cli/pkg/spinner"
 )
 
 // NewCmdTimer creates the timer command group
@@ -27,10 +30,10 @@ Without a subcommand, shows the currently active timer.`,
   gitscrum timer
 
   # Start timer on a task
-  gitscrum timer start GS-123
+  gitscrum timer start a1b2c3d4
 
   # Start with a note
-  gitscrum timer start GS-123 -m "Working on bug fix"
+  gitscrum timer start a1b2c3d4 -m "Working on bug fix"
 
   # Stop current timer
   gitscrum timer stop
@@ -54,37 +57,40 @@ Without a subcommand, shows the currently active timer.`,
 	return cmd
 }
 
-// ActiveTimer represents an active time tracking entry
+// ActiveTimer represents a task with an active timer (matches BoardTaskResource)
 type ActiveTimer struct {
-	UUID    string `json:"uuid"`
-	Start   string `json:"start"`
-	Comment string `json:"comment"`
-	Issue   struct {
-		UUID   string `json:"uuid"`
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-	} `json:"issue"`
+	UUID        string `json:"uuid"`
+	Code        string `json:"code"`
+	Title       string `json:"title"`
+	TimeTracker string `json:"time_tracker"`
+	Project     *struct {
+		Slug string `json:"slug"`
+		Name string `json:"name"`
+	} `json:"project"`
 }
 
 func runTimerStatus(f *factory.Factory) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		fmt.Println("  run 'gitscrum auth login' to authenticate")
-		return nil
+		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required. Use -w flag or set default")
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		return err
 	}
+
+	sp := spinner.New("Loading timer status...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/time-trackings/active?company_slug=%s", workspace)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -98,30 +104,41 @@ func runTimerStatus(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	if len(result.Data) == 0 {
-		fmt.Println("No active timer")
-		fmt.Println()
-		fmt.Println("Start one with: gitscrum timer start <task-code>")
+		output.Empty("No active timer", "Start one with: gitscrum timer start <task-code>")
 		return nil
 	}
 
-	fmt.Println("ACTIVE TIMERS")
-	fmt.Println()
+	output.Header("Active Timers")
 
 	for _, t := range result.Data {
-		start, _ := time.Parse(time.RFC3339, t.Start)
-		elapsed := time.Since(start).Round(time.Minute)
-
-		code := fmt.Sprintf("#%d", t.Issue.Number)
-		fmt.Printf("* %s  %s\n", code, t.Issue.Title)
-		fmt.Printf("  elapsed: %s\n", formatDuration(elapsed))
-		if t.Comment != "" {
-			fmt.Printf("  note: %s\n", t.Comment)
+		var elapsed time.Duration
+		if t.TimeTracker != "" {
+			start, _ := time.Parse(time.RFC3339, t.TimeTracker)
+			if !start.IsZero() {
+				elapsed = time.Since(start).Round(time.Minute)
+			}
 		}
-		fmt.Println()
+
+		codeLabel := t.Code
+		if codeLabel == "" {
+			codeLabel = t.UUID[:8]
+		}
+		output.Successf("%s  %s", codeLabel, t.Title)
+		if elapsed > 0 {
+			output.Dimf("elapsed: %s", formatDuration(elapsed))
+		}
+		if t.Project != nil && t.Project.Name != "" {
+			output.Dimf("project: %s", t.Project.Name)
+		}
 	}
 
-	fmt.Println("Stop with: gitscrum timer stop")
+	fmt.Println()
+	output.Info("Stop with: gitscrum timer stop")
 	return nil
 }
 
@@ -132,8 +149,8 @@ func NewCmdTimerStart(f *factory.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start <code>",
 		Short: "Start timer for a task",
-		Example: `  gitscrum timer start GS-123
-  gitscrum timer start GS-123 -m "Working on authentication"`,
+		Example: `  gitscrum timer start a1b2c3d4
+  gitscrum timer start a1b2c3d4 -m "Working on authentication"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTimerStart(f, args[0], message)
@@ -150,19 +167,25 @@ func runTimerStart(f *factory.Factory, code, message string) error {
 		return err
 	}
 
+	sp := spinner.New("Starting timer...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	// First, get the task by code to get its UUID
 	taskResp, err := client.Get(fmt.Sprintf("/time-trackings/resolve-task/%s", code))
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 	defer taskResp.Body.Close()
 
 	if taskResp.StatusCode == 404 {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 
@@ -173,10 +196,12 @@ func runTimerStart(f *factory.Factory, code, message string) error {
 		} `json:"data"`
 	}
 	if err := decodeResponse(taskResp, &taskResult); err != nil {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 
 	if taskResult.Data.UUID == "" {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 
@@ -186,13 +211,14 @@ func runTimerStart(f *factory.Factory, code, message string) error {
 	}
 
 	resp, err := client.Post("/time-trackings/start", body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == 409 {
-		fmt.Printf("warning: timer already running for %s\n", code)
+		output.Warningf("Timer already running for %s", code)
 		return nil
 	}
 
@@ -205,11 +231,11 @@ func runTimerStart(f *factory.Factory, code, message string) error {
 		displayCode = code
 	}
 
-	fmt.Printf("Timer started for %s\n", displayCode)
+	output.Successf("Timer started for %s", displayCode)
 	if message != "" {
-		fmt.Printf("  note: %s\n", message)
+		output.Dimf("note: %s", message)
 	}
-	fmt.Printf("  started at: %s\n", time.Now().Format("15:04"))
+	output.Dimf("started at: %s", time.Now().Format("15:04"))
 
 	return nil
 }
@@ -232,13 +258,17 @@ func runTimerStop(f *factory.Factory) error {
 		return err
 	}
 
-	workspace, _ := f.CurrentWorkspace()
-	if workspace == "" {
-		return fmt.Errorf("workspace required")
+	workspace, err := f.RequireWorkspace()
+	if err != nil {
+		return err
 	}
+
+	sp := spinner.New("Stopping timers...")
+	sp.Start()
 
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
@@ -247,6 +277,7 @@ func runTimerStop(f *factory.Factory) error {
 	}
 
 	resp, err := client.Post("/time-trackings/stop-all", body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -266,16 +297,21 @@ func runTimerStop(f *factory.Factory) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result)
+	}
+
 	if result.Stopped == 0 {
-		fmt.Println("No active timers to stop")
+		output.Empty("No active timers to stop", "")
 		return nil
 	}
 
-	fmt.Printf("Stopped %d timer(s)\n\n", result.Stopped)
+	output.Successf("Stopped %d timer(s)", result.Stopped)
+	fmt.Println()
 
 	for _, t := range result.Data {
-		fmt.Printf("  %s  %s\n", t.TaskCode, t.TaskTitle)
-		fmt.Printf("    duration: %s\n", t.DurationFormatted)
+		output.Bulletf("%s  %s", t.TaskCode, t.TaskTitle)
+		output.Dimf("duration: %s", t.DurationFormatted)
 	}
 
 	return nil
@@ -291,8 +327,8 @@ func NewCmdTimerLog(f *factory.Factory) *cobra.Command {
 		Long: `Log time manually without using the timer.
 
 Duration format: 1h30m, 2h, 45m`,
-		Example: `  gitscrum timer log GS-123 2h30m
-  gitscrum timer log GS-123 45m -m "Code review"`,
+		Example: `  gitscrum timer log a1b2c3d4 2h30m
+  gitscrum timer log a1b2c3d4 45m -m "Code review"`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTimerLog(f, args[0], args[1], message)
@@ -314,18 +350,24 @@ func runTimerLog(f *factory.Factory, code, duration, message string) error {
 		return fmt.Errorf("invalid duration format: %s (use format like 1h30m)", duration)
 	}
 
+	sp := spinner.New("Logging time...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	taskResp, err := client.Get(fmt.Sprintf("/time-trackings/resolve-task/%s", code))
 	if err != nil {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 	defer taskResp.Body.Close()
 
 	if taskResp.StatusCode == 404 {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 
@@ -336,10 +378,12 @@ func runTimerLog(f *factory.Factory, code, duration, message string) error {
 		} `json:"data"`
 	}
 	if err := decodeResponse(taskResp, &taskResult); err != nil {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 
 	if taskResult.Data.UUID == "" {
+		sp.Stop()
 		return fmt.Errorf("task not found: %s", code)
 	}
 
@@ -354,6 +398,7 @@ func runTimerLog(f *factory.Factory, code, duration, message string) error {
 	}
 
 	resp, err := client.Post("/time-trackings", body)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -368,9 +413,9 @@ func runTimerLog(f *factory.Factory, code, duration, message string) error {
 		displayCode = code
 	}
 
-	fmt.Printf("Logged %s for %s\n", formatDuration(d), displayCode)
+	output.Successf("Logged %s for %s", formatDuration(d), displayCode)
 	if message != "" {
-		fmt.Printf("  note: %s\n", message)
+		output.Dimf("note: %s", message)
 	}
 
 	return nil
@@ -400,15 +445,18 @@ func NewCmdTimerReport(f *factory.Factory) *cobra.Command {
 
 func runTimerReport(f *factory.Factory, week, team bool) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
 	workspace, _ := f.CurrentWorkspace()
 	project, _ := f.CurrentProject()
 
+	sp := spinner.New("Loading report...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
@@ -425,6 +473,7 @@ func runTimerReport(f *factory.Factory, week, team bool) error {
 	}
 
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -453,45 +502,46 @@ func runTimerReport(f *factory.Factory, week, team bool) error {
 		return err
 	}
 
-	if team {
-		fmt.Printf("TIME REPORT - %s (Team)\n", periodLabel)
-	} else {
-		fmt.Printf("TIME REPORT - %s\n", periodLabel)
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
 	}
-	fmt.Println()
+
+	title := fmt.Sprintf("Time Report — %s", periodLabel)
+	if team {
+		title += " (Team)"
+	}
+	output.Header(title)
 
 	totalMinutes := result.Data.TotalSeconds / 60
 	totalHours := totalMinutes / 60
 	totalMins := totalMinutes % 60
-	fmt.Printf("Total: %dh %dm\n\n", totalHours, totalMins)
+	output.KeyValuef("Total", "%dh %dm", totalHours, totalMins)
 
 	if team && len(result.Data.ByUser) > 0 {
-		fmt.Println("BY MEMBER:")
+		output.SubHeader("By Member")
 		for _, u := range result.Data.ByUser {
 			mins := u.Seconds / 60
 			h := mins / 60
 			m := mins % 60
-			fmt.Printf("  %-20s %dh %dm\n", u.Name, h, m)
+			output.Bulletf("%-20s %dh %dm", u.Name, h, m)
 		}
-		fmt.Println()
 	}
 
 	if len(result.Data.Entries) > 0 {
-		fmt.Println("ENTRIES:")
+		output.SubHeader("Entries")
 		for _, e := range result.Data.Entries {
 			mins := e.Seconds / 60
 			h := mins / 60
 			m := mins % 60
-			desc := e.Description
-			if len(desc) > 30 {
-				desc = desc[:30] + "..."
-			}
-			fmt.Printf("  %s  %dh %dm  %s\n", e.TaskCode, h, m, desc)
+			desc := output.Truncate(e.Description, 30)
+			output.Bulletf("%s  %dh %dm  %s", e.TaskCode, h, m, desc)
 		}
 	} else {
-		fmt.Println("No time entries for this period")
+		fmt.Println()
+		output.Empty("No time entries for this period", "")
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -517,19 +567,23 @@ Shows time distribution, focus time, and productivity scores.`,
 
 func runTimerProductivity(f *factory.Factory, period string) error {
 	if err := f.RequireAuth(); err != nil {
-		fmt.Println("error: not authenticated")
-		return nil
+		return err
 	}
 
 	workspace, _ := f.CurrentWorkspace()
 
+	sp := spinner.New("Loading productivity data...")
+	sp.Start()
+
 	client, err := f.APIClient()
 	if err != nil {
+		sp.Stop()
 		return err
 	}
 
 	path := fmt.Sprintf("/time-trackings/productivity?company_slug=%s&period=%s", workspace, period)
 	resp, err := client.Get(path)
+	sp.Stop()
 	if err != nil {
 		return err
 	}
@@ -555,11 +609,13 @@ func runTimerProductivity(f *factory.Factory, period string) error {
 		return err
 	}
 
+	if f.OutputFormat == output.FormatJSON {
+		return f.Formatter().Print(result.Data)
+	}
+
 	d := result.Data
 
-	fmt.Println("PRODUCTIVITY METRICS")
-	fmt.Println("====================")
-	fmt.Println()
+	output.Header("Productivity Metrics")
 
 	totalMins := d.TotalSeconds / 60
 	totalH := totalMins / 60
@@ -568,32 +624,31 @@ func runTimerProductivity(f *factory.Factory, period string) error {
 	focusH := focusMins / 60
 	focusM := focusMins % 60
 
-	fmt.Printf("Total time:       %dh %dm\n", totalH, totalM)
-	fmt.Printf("Focus time:       %dh %dm\n", focusH, focusM)
-	fmt.Printf("Avg daily:        %.1fh\n", d.AvgDailyHours)
-	fmt.Printf("Tasks completed:  %d\n", d.TasksCompleted)
-	fmt.Println()
+	output.KeyValuef("Total time", "%dh %dm", totalH, totalM)
+	output.KeyValuef("Focus time", "%dh %dm", focusH, focusM)
+	output.KeyValuef("Avg daily", "%.1fh", d.AvgDailyHours)
+	output.KeyValuef("Tasks completed", "%d", d.TasksCompleted)
 
-	scoreBar := renderProgressBar(d.ProductivityScore, 100, 20)
-	fmt.Printf("Score: %.0f%% %s\n", d.ProductivityScore, scoreBar)
 	fmt.Println()
+	scoreBar := renderProgressBar(d.ProductivityScore, 100, 20)
+	output.KeyValuef("Score", "%.0f%% %s", d.ProductivityScore, scoreBar)
 
 	if d.MostProductiveDay != "" {
-		fmt.Printf("Most productive: %s\n", d.MostProductiveDay)
-		fmt.Println()
+		output.KeyValue("Most productive", d.MostProductiveDay)
 	}
 
 	if len(d.ByCategory) > 0 {
-		fmt.Println("TIME BY CATEGORY:")
+		output.SubHeader("Time by Category")
 		for _, c := range d.ByCategory {
 			bar := renderProgressBar(c.Percent, 100, 15)
 			mins := c.Seconds / 60
 			h := mins / 60
 			m := mins % 60
-			fmt.Printf("  %-15s %s %dh %dm (%.0f%%)\n", c.Name, bar, h, m, c.Percent)
+			output.Bulletf("%-15s %s %dh %dm (%.0f%%)", c.Name, bar, h, m, c.Percent)
 		}
 	}
 
+	fmt.Println()
 	return nil
 }
 
@@ -618,15 +673,7 @@ func renderProgressBar(value, max float64, width int) string {
 	}
 	filled := int(percent * float64(width))
 	empty := width - filled
-	return "[" + repeatChar('#', filled) + repeatChar('-', empty) + "]"
-}
-
-func repeatChar(char rune, count int) string {
-	result := ""
-	for i := 0; i < count; i++ {
-		result += string(char)
-	}
-	return result
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
 }
 
 func decodeResponse(resp *http.Response, v interface{}) error {

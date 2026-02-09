@@ -30,6 +30,9 @@ type Config struct {
 	// Default project slug
 	Project string `mapstructure:"project"`
 	
+	// Language preference (en, pt, fr, es)
+	Language string `mapstructure:"language"`
+	
 	// OAuth settings
 	OAuth OAuthConfig `mapstructure:"oauth"`
 }
@@ -48,14 +51,14 @@ func Load() (*Config, error) {
 			// CLI client ID from OAuthClientSeeder
 			ClientID: "3e2d1c0b-a9b8-c7d6-e5f4-a3b2c1d0e9f8",
 			// CLI scope + standard read/write permissions
-			Scopes: "cli read write tasks:read tasks:write time-tracking:read time-tracking:write projects:read sprints:read standup:read standup:write",
+			Scopes: "cli read write tasks:read tasks:write time-tracking:read time-tracking:write projects:read sprints:read standup:read standup:write wiki:read wiki:write",
 		},
 	}
 
 	// Set defaults
 	viper.SetDefault("api_url", DefaultAPIURL)
 	viper.SetDefault("oauth.client_id", "3e2d1c0b-a9b8-c7d6-e5f4-a3b2c1d0e9f8")
-	viper.SetDefault("oauth.scopes", "cli read write tasks:read tasks:write time-tracking:read time-tracking:write projects:read sprints:read standup:read standup:write")
+	viper.SetDefault("oauth.scopes", "cli read write tasks:read tasks:write time-tracking:read time-tracking:write projects:read sprints:read standup:read standup:write wiki:read wiki:write")
 
 	// Unmarshal config
 	if err := viper.Unmarshal(cfg); err != nil {
@@ -91,6 +94,7 @@ func Save(cfg *Config) error {
 	viper.Set("api_url", cfg.APIURL)
 	viper.Set("workspace", cfg.Workspace)
 	viper.Set("project", cfg.Project)
+	viper.Set("language", cfg.Language)
 	viper.Set("oauth.client_id", cfg.OAuth.ClientID)
 	viper.Set("oauth.scopes", cfg.OAuth.Scopes)
 
@@ -109,7 +113,7 @@ func DefaultConfig() *Config {
 		APIURL: DefaultAPIURL,
 		OAuth: OAuthConfig{
 			ClientID: "3e2d1c0b-a9b8-c7d6-e5f4-a3b2c1d0e9f8",
-			Scopes:   "cli read write tasks:read tasks:write time-tracking:read time-tracking:write projects:read sprints:read standup:read standup:write",
+			Scopes:   "cli read write tasks:read tasks:write time-tracking:read time-tracking:write projects:read sprints:read standup:read standup:write wiki:read wiki:write",
 		},
 	}
 }
@@ -124,6 +128,21 @@ func SetWorkspace(slug string) error {
 func SetProject(slug string) error {
 	viper.Set("project", slug)
 	return saveConfig()
+}
+
+// SetLanguage sets the default language (en, pt, fr, es)
+func SetLanguage(lang string) error {
+	viper.Set("language", lang)
+	return saveConfig()
+}
+
+// GetLanguage returns the configured language or "en" as default
+func GetLanguage() string {
+	lang := viper.GetString("language")
+	if lang == "" {
+		return "en"
+	}
+	return lang
 }
 
 // saveConfig persists current viper config to file
