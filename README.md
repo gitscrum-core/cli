@@ -126,30 +126,30 @@ gitscrum config set project my-project
 
 ### Time Tracking
 
-| Command | Description |
-|:--------|:------------|
-| `gitscrum timer start [TASK]` | Start timer for a task |
-| `gitscrum timer stop` | Stop active timer |
-| `gitscrum timer log TASK DURATION` | Log time manually (e.g., `2h30m`) |
-| `gitscrum timer report` | View time reports |
+| Command | Description | Docs |
+|:--------|:------------|:-----|
+| `gitscrum timer start [TASK]` | Start timer for a task | [timer](docs/commands/timer.md) |
+| `gitscrum timer stop` | Stop active timer | [timer](docs/commands/timer.md) |
+| `gitscrum timer log TASK DURATION` | Log time manually (e.g., `2h30m`) | [timer](docs/commands/timer.md) |
+| `gitscrum timer report` | View time reports | [timer](docs/commands/timer.md) |
 
 ### Tasks
 
-| Command | Description |
-|:--------|:------------|
-| `gitscrum tasks` | List assigned tasks |
-| `gitscrum tasks view CODE` | View task details |
-| `gitscrum tasks create TITLE` | Create new task |
-| `gitscrum tasks current` | Show task for current git branch |
-| `gitscrum tasks branch CODE` | Create git branch from task |
+| Command | Description | Docs |
+|:--------|:------------|:-----|
+| `gitscrum tasks` | List assigned tasks | [tasks](docs/commands/tasks.md) |
+| `gitscrum tasks view CODE` | View task details | [tasks](docs/commands/tasks.md) |
+| `gitscrum tasks create TITLE` | Create new task | [tasks](docs/commands/tasks.md) |
+| `gitscrum tasks current` | Show task for current git branch | [tasks](docs/commands/tasks.md) |
+| `gitscrum tasks branch CODE` | Create git branch from task | [tasks](docs/commands/tasks.md) |
 
 ### Sprints
 
-| Command | Description |
-|:--------|:------------|
-| `gitscrum sprints` | List all sprints |
-| `gitscrum sprints current` | Current sprint with KPIs |
-| `gitscrum sprints burndown` | ASCII burndown chart |
+| Command | Description | Docs |
+|:--------|:------------|:-----|
+| `gitscrum sprints` | List all sprints | [sprints](docs/commands/sprints.md) |
+| `gitscrum sprints current` | Current sprint with KPIs | [sprints](docs/commands/sprints.md) |
+| `gitscrum sprints burndown` | ASCII burndown chart | [sprints](docs/commands/sprints.md) |
 
 ### Team & Collaboration
 
@@ -172,8 +172,8 @@ gitscrum config set project my-project
 | Command | Description | Docs |
 |:--------|:------------|:-----|
 | `gitscrum auth login` | Initiate OAuth flow | [auth](docs/commands/auth.md) |
-| `gitscrum auth logout` | Clear stored credentials | |
-| `gitscrum auth status` | Check authentication status | |
+| `gitscrum auth logout` | Clear stored credentials | [auth](docs/commands/auth.md) |
+| `gitscrum auth status` | Check authentication status | [auth](docs/commands/auth.md) |
 | `gitscrum config` | Manage CLI configuration | [config](docs/commands/config.md) |
 | `gitscrum init` | Initialize project configuration | [init](docs/commands/init.md) |
 | `gitscrum workspaces` | List and switch workspaces | [workspaces](docs/commands/workspaces.md) |
