@@ -34,18 +34,18 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: zip
     files:
       - README.md
       - LICENSE*
       - completions/*
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "checksums.txt"
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
@@ -60,19 +60,19 @@ changelog:
       - Merge pull request
       - Merge branch
 
-brews:
+homebrew_casks:
   - name: gitscrum
+    binaries:
+      - gitscrum
+    completions:
+      bash: completions/gitscrum.bash
+      zsh: completions/_gitscrum
+      fish: completions/gitscrum.fish
     repository:
       owner: gitscrum-core
       name: homebrew-tap
     homepage: "https://gitscrum.com"
     description: "GitScrum CLI - Project Management from your terminal"
-    license: "MIT"
-    install: |
-      bin.install "gitscrum"
-      bash_completion.install "completions/gitscrum.bash" => "gitscrum"
-      zsh_completion.install "completions/_gitscrum"
-      fish_completion.install "completions/gitscrum.fish"
 
 scoops:
   - name: gitscrum
