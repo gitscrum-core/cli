@@ -17,10 +17,10 @@ type ActiveTimer struct {
 
 // TimerReport represents aggregated time data
 type TimerReport struct {
-	TotalHours   float64         `json:"total_hours"`
-	BillableHours float64        `json:"billable_hours"`
-	ByProject    []ProjectTime   `json:"by_project"`
-	ByDay        []DayTime       `json:"by_day"`
+	TotalHours    float64       `json:"total_hours"`
+	BillableHours float64       `json:"billable_hours"`
+	ByProject     []ProjectTime `json:"by_project"`
+	ByDay         []DayTime     `json:"by_day"`
 }
 
 // ProjectTime represents time spent on a project
@@ -197,4 +197,3 @@ func (s *timerService) Productivity(period string) (*Productivity, error) {
 
 	return &result.Data, nil
 }
-

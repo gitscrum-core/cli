@@ -31,7 +31,7 @@ func TestTimerStart_Success(t *testing.T) {
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
-		
+
 		// First call: get task UUID
 		if strings.HasPrefix(r.URL.Path, "/tasks/by-code/") {
 			response := map[string]interface{}{
@@ -143,9 +143,9 @@ func TestTimerStop_Success(t *testing.T) {
 				"data": map[string]interface{}{
 					"id": 1,
 					"time": map[string]interface{}{
-						"start": map[string]interface{}{"date": "2024-02-07T10:00:00"},
-						"end":   map[string]interface{}{"date": "2024-02-07T10:45:00"},
-						"total": "00:45:00",
+						"start":            map[string]interface{}{"date": "2024-02-07T10:00:00"},
+						"end":              map[string]interface{}{"date": "2024-02-07T10:45:00"},
+						"total":            "00:45:00",
 						"duration_minutes": 45,
 					},
 				},
@@ -207,10 +207,10 @@ func TestTimerStatus_Running(t *testing.T) {
 					"id":      5,
 					"comment": "Debugging login",
 					"time": map[string]interface{}{
-						"id":    5,
-						"start": map[string]interface{}{"date": "2024-02-07T14:00:00"},
-						"end":   nil,
-						"total": "01:23:45",
+						"id":               5,
+						"start":            map[string]interface{}{"date": "2024-02-07T14:00:00"},
+						"end":              nil,
+						"total":            "01:23:45",
 						"duration_minutes": 83,
 					},
 					"task": map[string]interface{}{

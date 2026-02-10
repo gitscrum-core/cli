@@ -112,4 +112,3 @@ func (s *wikiService) Update(project, slug, title, content string) (*WikiPage, e
 
 	return &result.Data, nil
 }
-

@@ -76,12 +76,12 @@ func TestSprintsList_Success(t *testing.T) {
 					},
 				},
 				{
-					"id":          2,
-					"code":        "SPR-2",
-					"slug":        "sprint-2-feb-2024",
-					"title":       "Sprint 2 - February 2024",
-					"color":       "#9b59b6",
-					"duration":    14,
+					"id":       2,
+					"code":     "SPR-2",
+					"slug":     "sprint-2-feb-2024",
+					"title":    "Sprint 2 - February 2024",
+					"color":    "#9b59b6",
+					"duration": 14,
 					"stats": map[string]interface{}{
 						"story_points": 34,
 						"total_tasks":  20,
@@ -171,13 +171,13 @@ func TestSprintsView_Success(t *testing.T) {
 
 		response := map[string]interface{}{
 			"data": map[string]interface{}{
-				"id":          1,
-				"code":        "SPR-1",
-				"slug":        "sprint-1-feb-2024",
-				"title":       "Sprint 1 - February 2024",
-				"description": "First sprint focusing on authentication and core features",
-				"color":       "#3498db",
-				"duration":    14,
+				"id":              1,
+				"code":            "SPR-1",
+				"slug":            "sprint-1-feb-2024",
+				"title":           "Sprint 1 - February 2024",
+				"description":     "First sprint focusing on authentication and core features",
+				"color":           "#3498db",
+				"duration":        14,
 				"close_on_finish": true,
 				"timebox": map[string]interface{}{
 					"start":  map[string]interface{}{"date": "2024-02-01"},
@@ -250,8 +250,8 @@ func TestSprintsView_Success(t *testing.T) {
 func TestSprintsCurrent_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check for current/active filter
-		if !strings.Contains(r.URL.RawQuery, "status=sprint-open") && 
-		   !strings.Contains(r.URL.Path, "current") {
+		if !strings.Contains(r.URL.RawQuery, "status=sprint-open") &&
+			!strings.Contains(r.URL.Path, "current") {
 			// Return the current sprint
 		}
 

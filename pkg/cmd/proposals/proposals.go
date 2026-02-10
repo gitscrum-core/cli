@@ -37,21 +37,21 @@ Without a subcommand, lists all proposals.`,
 
 // Proposal represents a proposal (matches ProposalResource.php)
 type Proposal struct {
-	UUID               string            `json:"uuid"`
-	RefCode            string            `json:"ref_code"`
-	Code               string            `json:"code"`
-	Title              string            `json:"title"`
-	Status             string            `json:"status"`
-	StatusLabel        string            `json:"status_label"`
-	TotalValueFormatted string           `json:"total_value_formatted"`
-	Currency           string            `json:"currency"`
-	ContactCompany     *struct {
+	UUID                string `json:"uuid"`
+	RefCode             string `json:"ref_code"`
+	Code                string `json:"code"`
+	Title               string `json:"title"`
+	Status              string `json:"status"`
+	StatusLabel         string `json:"status_label"`
+	TotalValueFormatted string `json:"total_value_formatted"`
+	Currency            string `json:"currency"`
+	ContactCompany      *struct {
 		Name string `json:"name"`
 		UUID string `json:"uuid"`
 	} `json:"contact_company"`
-	ClientName         string            `json:"client_name"`
-	ExpiresAt          *api.DateResource `json:"expires_at"`
-	CreatedAt          *api.DateResource `json:"created_at"`
+	ClientName string            `json:"client_name"`
+	ExpiresAt  *api.DateResource `json:"expires_at"`
+	CreatedAt  *api.DateResource `json:"created_at"`
 }
 
 func runProposalsList(f *factory.Factory) error {

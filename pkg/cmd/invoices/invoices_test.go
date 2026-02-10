@@ -32,10 +32,10 @@ func TestInvoicesList_Success(t *testing.T) {
 			response := map[string]interface{}{
 				"data": []map[string]interface{}{
 					{
-						"uuid":                 "inv-1",
-						"ref_code":             "INV-2026-001",
-						"series":               "Invoice #001",
-						"gross_total":          12500,
+						"uuid":                  "inv-1",
+						"ref_code":              "INV-2026-001",
+						"series":                "Invoice #001",
+						"gross_total":           12500,
 						"gross_total_formatted": "12,500.00",
 						"status": map[string]interface{}{
 							"id":   1,
@@ -49,10 +49,10 @@ func TestInvoicesList_Success(t *testing.T) {
 						"contact":        map[string]interface{}{"name": "TechCorp", "uuid": "contact-1"},
 					},
 					{
-						"uuid":                 "inv-2",
-						"ref_code":             "INV-2026-002",
-						"series":               "Invoice #002",
-						"gross_total":          8500,
+						"uuid":                  "inv-2",
+						"ref_code":              "INV-2026-002",
+						"series":                "Invoice #002",
+						"gross_total":           8500,
 						"gross_total_formatted": "8,500.00",
 						"status": map[string]interface{}{
 							"id":   2,
@@ -105,10 +105,10 @@ func TestInvoiceView_Success(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/company-invoices/") {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
-					"uuid":                 "inv-1",
-					"ref_code":             "INV-2026-001",
-					"series":               "Invoice #001",
-					"gross_total":          12500,
+					"uuid":                  "inv-1",
+					"ref_code":              "INV-2026-001",
+					"series":                "Invoice #001",
+					"gross_total":           12500,
 					"gross_total_formatted": "12,500.00",
 					"status": map[string]interface{}{
 						"id":   1,

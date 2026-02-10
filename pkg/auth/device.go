@@ -17,7 +17,7 @@ const (
 	// OAuth endpoints (matching Laravel API routes)
 	DeviceCodeEndpoint = "/oauth/device/code"
 	TokenEndpoint      = "/oauth/device/token"
-	
+
 	// Grant types
 	GrantTypeDeviceCode = "urn:ietf:params:oauth:grant-type:device_code"
 )

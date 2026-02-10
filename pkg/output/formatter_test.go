@@ -48,7 +48,7 @@ func TestTableFormatter_PrintTable(t *testing.T) {
 func TestTableFormatter_PrintSuccess(t *testing.T) {
 	var buf bytes.Buffer
 	f := &TableFormatter{Writer: &buf}
-	
+
 	// Note: color output goes to os.Stdout, not the formatter's Writer
 	// This test just ensures no panic
 	f.PrintSuccess("Task created")

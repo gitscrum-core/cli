@@ -152,7 +152,6 @@ func runClientsList(f *factory.Factory) error {
 	return nil
 }
 
-
 // NewCmdClientsView shows client details
 func NewCmdClientsView(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
@@ -187,10 +186,10 @@ func runClientsView(f *factory.Factory, nameOrUUID string) error {
 
 	// Resolve name to UUID if needed
 	clientUUID := nameOrUUID
-	
+
 	// Check if it looks like a UUID (has hyphens or is 32+ chars)
 	isLikelyUUID := strings.Contains(nameOrUUID, "-") || len(nameOrUUID) >= 32
-	
+
 	if !isLikelyUUID {
 		// Fetch clients list and find by name
 		listPath := fmt.Sprintf("/contact-companies/clients?company_slug=%s", workspace)
@@ -199,7 +198,7 @@ func runClientsView(f *factory.Factory, nameOrUUID string) error {
 			sp.Stop()
 			return err
 		}
-		
+
 		var listResult struct {
 			Data []Client `json:"data"`
 		}
@@ -207,19 +206,19 @@ func runClientsView(f *factory.Factory, nameOrUUID string) error {
 			sp.Stop()
 			return err
 		}
-		
+
 		// Search by ref_code, name (case-insensitive), or partial UUID match
 		searchLower := strings.ToLower(nameOrUUID)
 		var foundClient *Client
 		for i, c := range listResult.Data {
 			if c.RefCode == nameOrUUID ||
-			   strings.ToLower(c.Name) == searchLower ||
-			   strings.HasPrefix(c.UUID, nameOrUUID) {
+				strings.ToLower(c.Name) == searchLower ||
+				strings.HasPrefix(c.UUID, nameOrUUID) {
 				foundClient = &listResult.Data[i]
 				break
 			}
 		}
-		
+
 		if foundClient == nil {
 			sp.Stop()
 			return fmt.Errorf("client '%s' not found. Use 'gitscrum clients' to list all clients", nameOrUUID)

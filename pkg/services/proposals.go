@@ -86,4 +86,3 @@ func (s *proposalsService) Send(uuid string) (*Proposal, error) {
 
 	return &result.Data, nil
 }
-

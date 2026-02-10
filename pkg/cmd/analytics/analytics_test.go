@@ -209,10 +209,10 @@ func TestAnalyticsCycleTime_Success(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/cli/analytics/cycle-time") {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
-					"avg_cycle_time":  4.5,
-					"p50_cycle_time":  3.0,
-					"p90_cycle_time":  8.0,
-					"trend":           "improving",
+					"avg_cycle_time": 4.5,
+					"p50_cycle_time": 3.0,
+					"p90_cycle_time": 8.0,
+					"trend":          "improving",
 					"by_type": map[string]interface{}{
 						"bug":     2.5,
 						"feature": 6.0,

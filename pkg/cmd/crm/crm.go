@@ -59,10 +59,10 @@ func runCRMDashboard(f *factory.Factory) error {
 	var result struct {
 		Data struct {
 			Summary struct {
-				TotalClients    int `json:"total_clients"`
-				ActiveProjects  int `json:"active_projects"`
-				TotalProjects   int `json:"total_projects"`
-				ProjectsAtRisk  int `json:"projects_at_risk"`
+				TotalClients   int `json:"total_clients"`
+				ActiveProjects int `json:"active_projects"`
+				TotalProjects  int `json:"total_projects"`
+				ProjectsAtRisk int `json:"projects_at_risk"`
 			} `json:"summary"`
 			Invoices struct {
 				Total         int     `json:"total"`
@@ -194,9 +194,9 @@ func runCRMRevenue(f *factory.Factory) error {
 				Total float64 `json:"total"`
 			} `json:"proposals_summary"`
 			OverdueInvoices []struct {
-				UUID           string  `json:"uuid"`
-				Series         string  `json:"series"`
-				Client         struct {
+				UUID   string `json:"uuid"`
+				Series string `json:"series"`
+				Client struct {
 					Name string `json:"name"`
 				} `json:"client"`
 				Amount         float64 `json:"amount"`

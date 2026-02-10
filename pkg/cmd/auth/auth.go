@@ -559,7 +559,7 @@ func NewCmdStatus(f *factory.Factory) *cobra.Command {
 			}
 
 			fmt.Println("✓ Authenticated")
-			
+
 			cfg, _ := f.Config()
 			if cfg != nil {
 				if cfg.Workspace != "" {

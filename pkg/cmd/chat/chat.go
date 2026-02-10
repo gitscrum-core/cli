@@ -201,9 +201,9 @@ func runChatView(f *factory.Factory, channelNameOrSlug string, page, limit int) 
 	var result struct {
 		Data []Message `json:"data"`
 		Meta struct {
-			HasMore   bool `json:"has_more"`
-			OldestID  int  `json:"oldest_id"`
-			NewestID  int  `json:"newest_id"`
+			HasMore  bool `json:"has_more"`
+			OldestID int  `json:"oldest_id"`
+			NewestID int  `json:"newest_id"`
 		} `json:"meta"`
 	}
 	if err := api.DecodeResponse(resp, &result); err != nil {
@@ -222,7 +222,7 @@ func runChatView(f *factory.Factory, channelNameOrSlug string, page, limit int) 
 		if endIdx > totalMessages {
 			endIdx = totalMessages
 		}
-		
+
 		pageMessages := result.Data[startIdx:endIdx]
 		jsonOutput := struct {
 			Channel  string    `json:"channel"`
@@ -257,7 +257,7 @@ func runChatView(f *factory.Factory, channelNameOrSlug string, page, limit int) 
 	// Slice messages for the current page
 	// result.Data is ordered newest first from API
 	totalMessages := len(result.Data)
-	
+
 	// Calculate start and end indices for this page
 	startIdx := offset
 	endIdx := offset + limit
@@ -282,7 +282,7 @@ func runChatView(f *factory.Factory, channelNameOrSlug string, page, limit int) 
 	hasOlderMessages := result.Meta.HasMore || endIdx < totalMessages
 	fmt.Println("─────────────────────────────────────")
 	fmt.Printf("Page %d • Showing %d messages\n", page, len(pageMessages))
-	
+
 	if page > 1 {
 		fmt.Printf("Newer: gitscrum chat %s --page %d\n", channelNameOrSlug, page-1)
 	}
@@ -365,9 +365,9 @@ func resolveChannel(client *api.Client, workspace, project, channelNameOrSlug st
 	// Try to match by name (case-insensitive), slug, or UUID
 	nameToMatch := strings.ToLower(channelNameOrSlug)
 	for _, c := range result.Data {
-		if strings.ToLower(c.Name) == nameToMatch || 
-		   strings.ToLower(c.Slug) == nameToMatch || 
-		   c.UUID == channelNameOrSlug {
+		if strings.ToLower(c.Name) == nameToMatch ||
+			strings.ToLower(c.Slug) == nameToMatch ||
+			c.UUID == channelNameOrSlug {
 			return c.UUID, c.Name, nil
 		}
 	}

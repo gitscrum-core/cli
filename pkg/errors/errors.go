@@ -127,7 +127,7 @@ func HandleAPIError(resp *http.Response, body string) *CLIError {
 func parseValidationError(body string) *CLIError {
 	// Try to extract meaningful message from Laravel validation errors
 	// Example: {"message":"The given data was invalid.","errors":{"title":["required"]}}
-	
+
 	if strings.Contains(body, "title") && strings.Contains(body, "required") {
 		return &CLIError{
 			Message:    "Title is required",
@@ -135,7 +135,7 @@ func parseValidationError(body string) *CLIError {
 			Code:       "VALIDATION_ERROR",
 		}
 	}
-	
+
 	if strings.Contains(body, "project") && strings.Contains(body, "required") {
 		return ErrNoProject
 	}

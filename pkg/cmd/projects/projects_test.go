@@ -59,10 +59,10 @@ func TestProjectsList_Success(t *testing.T) {
 						"title": "Active",
 					},
 					"settings": map[string]interface{}{
-						"use_timer":    true,
-						"has_sprints":  true,
-						"has_wiki":     true,
-						"show_number":  true,
+						"use_timer":   true,
+						"has_sprints": true,
+						"has_wiki":    true,
+						"show_number": true,
 					},
 				},
 				{

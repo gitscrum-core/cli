@@ -275,11 +275,11 @@ func runTasksList(f *factory.Factory, opts *ListOptions) error {
 	// Parse response with pagination
 	var result struct {
 		Data []struct {
-			UUID    string `json:"uuid"`
-			Number  int    `json:"number"`
-			Title   string `json:"title"`
-			Code    string `json:"code"`
-			RefCode string `json:"ref_code"`
+			UUID     string `json:"uuid"`
+			Number   int    `json:"number"`
+			Title    string `json:"title"`
+			Code     string `json:"code"`
+			RefCode  string `json:"ref_code"`
 			Workflow *struct {
 				Title string `json:"title"`
 			} `json:"workflow"`
@@ -485,7 +485,7 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 	// ref_code is an 8-char hex identifier (e.g., a1b2c3d4)
 	isRefCode := len(code) == 8 && regexp.MustCompile(`^[a-fA-F0-9]{8}$`).MatchString(code)
 	isTaskCode := strings.Contains(code, "-")
-	
+
 	if !isRefCode && !isTaskCode {
 		sp.Stop()
 		return fmt.Errorf("invalid task code format: %s (expected: XX-123 or 8-char ref_code like a1b2c3d4)", code)
@@ -508,16 +508,16 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 
 	var result struct {
 		Data struct {
-			UUID        string `json:"uuid"`
-			Code        string `json:"code"`
-			RefCode     string `json:"ref_code"`
-			Title       string `json:"title"`
-			Description string `json:"description"`
-			Slug        string `json:"slug"`
-			Estimative  int    `json:"estimative"`
-			EstimatedMinutes     int `json:"estimated_minutes"`
-			TotalTrackedMinutes  int `json:"total_tracked_minutes"`
-			Workflow    *struct {
+			UUID                string `json:"uuid"`
+			Code                string `json:"code"`
+			RefCode             string `json:"ref_code"`
+			Title               string `json:"title"`
+			Description         string `json:"description"`
+			Slug                string `json:"slug"`
+			Estimative          int    `json:"estimative"`
+			EstimatedMinutes    int    `json:"estimated_minutes"`
+			TotalTrackedMinutes int    `json:"total_tracked_minutes"`
+			Workflow            *struct {
 				Title string `json:"title"`
 				Color string `json:"color"`
 			} `json:"workflow"`
@@ -528,11 +528,11 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 				Title string `json:"title"`
 				Value int    `json:"value"`
 			} `json:"effort"`
-			StartDate *api.DateResource `json:"start_date"`
-			DueDate   *api.DateResource `json:"due_date"`
+			StartDate     *api.DateResource `json:"start_date"`
+			DueDate       *api.DateResource `json:"due_date"`
 			CompletedDate *api.DateResource `json:"completed_date"`
-			CreatedAt *api.DateResource `json:"created_at"`
-			User *struct {
+			CreatedAt     *api.DateResource `json:"created_at"`
+			User          *struct {
 				Name     string `json:"name"`
 				Username string `json:"username"`
 			} `json:"user"`
@@ -598,16 +598,16 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 	// If --comments flag is passed, only show comments and return
 	if showComments {
 		fmt.Println()
-		
+
 		// Fetch comments using ref_code or uuid
 		commentableId := task.RefCode
 		if commentableId == "" {
 			commentableId = task.UUID
 		}
-		
+
 		// Build comments URL with required slugs
 		commentsURL := fmt.Sprintf("/comments?commentable_type=issues&commentable_id=%s&company_slug=%s&project_slug=%s", commentableId, workspace, project)
-		
+
 		commentsResp, err := client.Get(commentsURL)
 		if err != nil {
 			fmt.Printf("Could not load comments: %v\n", err)
@@ -615,10 +615,10 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 			return nil
 		}
 		defer commentsResp.Body.Close()
-		
+
 		var commentsResult struct {
 			Data []struct {
-				Comment   string `json:"comment"`
+				Comment   string            `json:"comment"`
 				CreatedAt *api.DateResource `json:"created_at"`
 				User      *struct {
 					Name     string `json:"name"`
@@ -626,13 +626,13 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 				} `json:"user"`
 			} `json:"data"`
 		}
-		
+
 		if err := api.DecodeResponse(commentsResp, &commentsResult); err != nil {
 			fmt.Printf("%s: %v\n", i18n.T("could_not_parse_comments"), err)
 			fmt.Println()
 			return nil
 		}
-		
+
 		if len(commentsResult.Data) == 0 {
 			fmt.Println(i18n.T("no_comments_yet"))
 			fmt.Println()
@@ -651,7 +651,7 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 				fmt.Printf("  %s\n\n", output.StripHTML(c.Comment))
 			}
 		}
-		
+
 		fmt.Println()
 		return nil
 	}
@@ -659,10 +659,10 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 	// If --timetracking flag is passed, only show time entries and return
 	if showTimeTracking {
 		fmt.Println()
-		
+
 		// Fetch time tracking entries using the same endpoint the app uses
 		timeURL := fmt.Sprintf("/time-trackings/no-task/?company_slug=%s&project_slug=%s&task_uuid=%s", workspace, project, task.UUID)
-		
+
 		timeResp, err := client.Get(timeURL)
 		if err != nil {
 			fmt.Printf("%s: %v\n", i18n.T("could_not_load_time_tracking"), err)
@@ -670,13 +670,13 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 			return nil
 		}
 		defer timeResp.Body.Close()
-		
+
 		var timeResult struct {
 			Data []struct {
 				Comment string `json:"comment"`
 				Time    *struct {
-					Total           string `json:"total"`
-					DurationMinutes int    `json:"duration_minutes"`
+					Total           string            `json:"total"`
+					DurationMinutes int               `json:"duration_minutes"`
 					Start           *api.DateResource `json:"start"`
 					End             *api.DateResource `json:"end"`
 				} `json:"time"`
@@ -691,13 +691,13 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 				Total        string `json:"total"`
 			} `json:"stats"`
 		}
-		
+
 		if err := api.DecodeResponse(timeResp, &timeResult); err != nil {
 			fmt.Printf("%s: %v\n", i18n.T("could_not_parse_time_tracking"), err)
 			fmt.Println()
 			return nil
 		}
-		
+
 		if len(timeResult.Data) == 0 {
 			fmt.Println(i18n.T("no_time_entries_yet"))
 			fmt.Println()
@@ -707,28 +707,28 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 			if timeResult.Stats != nil && timeResult.Stats.Total != "" {
 				fmt.Printf("%s: %s\n\n", i18n.T("total"), timeResult.Stats.Total)
 			}
-			
+
 			for _, t := range timeResult.Data {
 				user := i18n.T("unknown")
 				if t.User != nil && t.User.Username != "" {
 					user = "@" + t.User.Username
 				}
-				
+
 				startTime := ""
 				if t.Time != nil && t.Time.Start != nil {
 					startTime = t.Time.Start.DateTime()
 				}
-				
+
 				duration := ""
 				if t.Time != nil && t.Time.Total != "" {
 					duration = t.Time.Total
 				}
-				
+
 				billable := ""
 				if t.IsBillable {
 					billable = " [" + i18n.T("billable") + "]"
 				}
-				
+
 				fmt.Printf("%s (%s) - %s%s\n", user, startTime, duration, billable)
 				if t.Comment != "" {
 					fmt.Printf("  %s\n", t.Comment)
@@ -736,7 +736,7 @@ func runTasksView(f *factory.Factory, code string, showComments bool, showTimeTr
 				fmt.Println()
 			}
 		}
-		
+
 		return nil
 	}
 	// Status with badges
@@ -1285,10 +1285,10 @@ func runTasksDuplicate(f *factory.Factory, code, toProject string, withSubtasks 
 // NewCmdTasksSubtasks creates the tasks subtasks command
 func NewCmdTasksSubtasks(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:   "subtasks <code>",
-		Short: "View subtasks of a task",
+		Use:     "subtasks <code>",
+		Short:   "View subtasks of a task",
 		Example: `  gitscrum tasks subtasks a1b2c3d4`,
-		Args:  cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTasksSubtasks(f, args[0])
 		},
@@ -1413,7 +1413,7 @@ func runTasksAddComment(f *factory.Factory, code, message string) error {
 
 	// First, get the task to retrieve UUID
 	isRefCode := len(code) == 8 && regexp.MustCompile(`^[a-fA-F0-9]{8}$`).MatchString(code)
-	
+
 	var endpoint string
 	if isRefCode {
 		endpoint = fmt.Sprintf("/tasks/ref/%s", code)

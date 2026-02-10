@@ -88,4 +88,3 @@ func (s *clientsService) Create(name, email, company string) (*Client, error) {
 
 	return &result.Data, nil
 }
-

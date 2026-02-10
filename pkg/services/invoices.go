@@ -8,14 +8,14 @@ import (
 
 // Invoice represents an invoice
 type Invoice struct {
-	UUID       string    `json:"uuid"`
-	Number     string    `json:"number"`
-	Client     Client    `json:"client"`
-	Amount     float64   `json:"amount"`
-	Status     string    `json:"status"` // draft, sent, paid, overdue
-	DueDate    time.Time `json:"due_date"`
-	PaidAt     time.Time `json:"paid_at"`
-	CreatedAt  time.Time `json:"created_at"`
+	UUID      string    `json:"uuid"`
+	Number    string    `json:"number"`
+	Client    Client    `json:"client"`
+	Amount    float64   `json:"amount"`
+	Status    string    `json:"status"` // draft, sent, paid, overdue
+	DueDate   time.Time `json:"due_date"`
+	PaidAt    time.Time `json:"paid_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // InvoicesService handles invoice operations
@@ -87,4 +87,3 @@ func (s *invoicesService) MarkAsPaid(uuid string) (*Invoice, error) {
 
 	return &result.Data, nil
 }
-

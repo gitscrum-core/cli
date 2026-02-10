@@ -6,24 +6,24 @@ import (
 
 // CRMContact represents a CRM contact
 type CRMContact struct {
-	UUID      string `json:"uuid"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Company   string `json:"company"`
-	Phone     string `json:"phone"`
-	Status    string `json:"status"`
-	Source    string `json:"source"`
-	Notes     string `json:"notes"`
+	UUID    string `json:"uuid"`
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Company string `json:"company"`
+	Phone   string `json:"phone"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+	Notes   string `json:"notes"`
 }
 
 // CRMDeal represents a CRM deal
 type CRMDeal struct {
-	UUID     string     `json:"uuid"`
-	Title    string     `json:"title"`
-	Value    float64    `json:"value"`
-	Stage    string     `json:"stage"`
-	Contact  CRMContact `json:"contact"`
-	Probability int     `json:"probability"`
+	UUID        string     `json:"uuid"`
+	Title       string     `json:"title"`
+	Value       float64    `json:"value"`
+	Stage       string     `json:"stage"`
+	Contact     CRMContact `json:"contact"`
+	Probability int        `json:"probability"`
 }
 
 // CRMService handles CRM operations
@@ -72,4 +72,3 @@ func (s *crmService) ListDeals() ([]CRMDeal, error) {
 
 	return result.Data, nil
 }
-

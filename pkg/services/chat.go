@@ -95,4 +95,3 @@ func (s *chatService) SendMessage(channelID, content string) (*ChatMessage, erro
 
 	return &result.Data, nil
 }
-

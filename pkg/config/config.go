@@ -11,10 +11,10 @@ import (
 const (
 	// DefaultAPIURL is the default GitScrum API URL
 	DefaultAPIURL = "https://services.gitscrum.com"
-	
+
 	// ConfigDir is the config directory name
 	ConfigDir = ".gitscrum"
-	
+
 	// ConfigFile is the config file name
 	ConfigFile = "config.yaml"
 )
@@ -23,16 +23,16 @@ const (
 type Config struct {
 	// API URL
 	APIURL string `mapstructure:"api_url"`
-	
+
 	// Default workspace slug
 	Workspace string `mapstructure:"workspace"`
-	
+
 	// Default project slug
 	Project string `mapstructure:"project"`
-	
+
 	// Language preference (en, pt, fr, es)
 	Language string `mapstructure:"language"`
-	
+
 	// OAuth settings
 	OAuth OAuthConfig `mapstructure:"oauth"`
 }

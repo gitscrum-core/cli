@@ -73,4 +73,3 @@ func (s *notificationsService) MarkAllAsRead() error {
 	defer resp.Body.Close()
 	return nil
 }
-

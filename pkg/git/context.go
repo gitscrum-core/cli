@@ -14,22 +14,22 @@ import (
 type Context struct {
 	// RepoPath is the root path of the repository
 	RepoPath string
-	
+
 	// RootPath is alias for RepoPath (for compatibility)
 	RootPath string
-	
+
 	// Branch is the current branch name
 	Branch string
-	
+
 	// RemoteURL is the origin remote URL
 	RemoteURL string
-	
+
 	// TaskCode extracted from branch (e.g., GS-123)
 	TaskCode string
-	
+
 	// Provider is github/gitlab/bitbucket
 	Provider string
-	
+
 	// RepoFullName is owner/repo format
 	RepoFullName string
 }

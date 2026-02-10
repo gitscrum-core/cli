@@ -11,7 +11,7 @@ import (
 const (
 	// ConfigFileName is the project config file name
 	ConfigFileName = ".gitscrum.yml"
-	
+
 	// AltConfigFileName is the alternative config file name
 	AltConfigFileName = ".gitscrum.yaml"
 )
@@ -21,31 +21,31 @@ const (
 type ProjectConfig struct {
 	// Version of the config schema
 	Version string `yaml:"version,omitempty"`
-	
+
 	// Workspace slug for this project
 	Workspace string `yaml:"workspace,omitempty"`
-	
+
 	// Project slug for this project
 	Project string `yaml:"project,omitempty"`
-	
+
 	// Branch patterns for automatic task detection
 	Branch BranchConfig `yaml:"branch,omitempty"`
-	
+
 	// Timer settings
 	Timer TimerConfig `yaml:"timer,omitempty"`
-	
+
 	// Hooks configuration
 	Hooks HooksConfig `yaml:"hooks,omitempty"`
-	
+
 	// Labels to apply automatically
 	Labels []string `yaml:"labels,omitempty"`
-	
+
 	// Custom task code pattern (regex)
 	TaskCodePattern string `yaml:"task_code_pattern,omitempty"`
-	
+
 	// Team configuration
 	Team TeamConfig `yaml:"team,omitempty"`
-	
+
 	// Automation settings
 	Automation AutomationConfig `yaml:"automation,omitempty"`
 }
@@ -55,13 +55,13 @@ type BranchConfig struct {
 	// Prefix patterns for different task types
 	// e.g., feature/ → feature, bugfix/ → bug
 	Prefixes map[string]string `yaml:"prefixes,omitempty"`
-	
+
 	// Default prefix when creating branches
 	DefaultPrefix string `yaml:"default_prefix,omitempty"`
-	
+
 	// Include task title in branch name
 	IncludeTitle bool `yaml:"include_title,omitempty"`
-	
+
 	// Max branch name length
 	MaxLength int `yaml:"max_length,omitempty"`
 }
@@ -70,16 +70,16 @@ type BranchConfig struct {
 type TimerConfig struct {
 	// Auto-start timer when switching to task branch
 	AutoStart bool `yaml:"auto_start,omitempty"`
-	
+
 	// Auto-stop timer when switching away from task branch
 	AutoStop bool `yaml:"auto_stop,omitempty"`
-	
+
 	// Minimum duration to log (in minutes)
 	MinDuration int `yaml:"min_duration,omitempty"`
-	
+
 	// Round to nearest (in minutes): 5, 15, 30
 	RoundTo int `yaml:"round_to,omitempty"`
-	
+
 	// Remind to stop timer after X hours of inactivity
 	RemindAfter int `yaml:"remind_after,omitempty"`
 }
@@ -88,13 +88,13 @@ type TimerConfig struct {
 type HooksConfig struct {
 	// Prepend task code to commit messages
 	PrependTaskCode bool `yaml:"prepend_task_code,omitempty"`
-	
+
 	// Commit message format: "[CODE] message" or "CODE: message"
 	CommitFormat string `yaml:"commit_format,omitempty"`
-	
+
 	// Validate task exists before push
 	ValidateOnPush bool `yaml:"validate_on_push,omitempty"`
-	
+
 	// Show task info on checkout
 	ShowTaskOnCheckout bool `yaml:"show_task_on_checkout,omitempty"`
 }
@@ -103,7 +103,7 @@ type HooksConfig struct {
 type TeamConfig struct {
 	// Default assignee for new tasks
 	DefaultAssignee string `yaml:"default_assignee,omitempty"`
-	
+
 	// Reviewers to request on PRs
 	Reviewers []string `yaml:"reviewers,omitempty"`
 }
@@ -112,19 +112,19 @@ type TeamConfig struct {
 type AutomationConfig struct {
 	// Move task to column on PR open
 	OnPROpen string `yaml:"on_pr_open,omitempty"`
-	
+
 	// Move task to column on PR merge
 	OnPRMerge string `yaml:"on_pr_merge,omitempty"`
-	
+
 	// Move task to column on PR close (without merge)
 	OnPRClose string `yaml:"on_pr_close,omitempty"`
-	
+
 	// Move task to column on deploy to staging
 	OnDeployStaging string `yaml:"on_deploy_staging,omitempty"`
-	
+
 	// Move task to column on deploy to production
 	OnDeployProd string `yaml:"on_deploy_prod,omitempty"`
-	
+
 	// Complete task on PR merge
 	CompleteOnMerge bool `yaml:"complete_on_merge,omitempty"`
 }
@@ -140,12 +140,12 @@ func LoadFromPath(startPath string) (*ProjectConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if configPath == "" {
 		// No config file found, return empty config
 		return &ProjectConfig{}, nil
 	}
-	
+
 	return LoadFromFile(configPath)
 }
 
@@ -155,15 +155,15 @@ func LoadFromFile(path string) (*ProjectConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var cfg ProjectConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-	
+
 	// Set defaults
 	cfg.setDefaults()
-	
+
 	return &cfg, nil
 }
 
@@ -173,20 +173,20 @@ func FindConfigFile(startPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	for {
 		// Check for .gitscrum.yml
 		configPath := filepath.Join(absPath, ConfigFileName)
 		if _, err := os.Stat(configPath); err == nil {
 			return configPath, nil
 		}
-		
+
 		// Check for .gitscrum.yaml
 		altConfigPath := filepath.Join(absPath, AltConfigFileName)
 		if _, err := os.Stat(altConfigPath); err == nil {
 			return altConfigPath, nil
 		}
-		
+
 		// Move to parent directory
 		parent := filepath.Dir(absPath)
 		if parent == absPath {
@@ -195,7 +195,7 @@ func FindConfigFile(startPath string) (string, error) {
 		}
 		absPath = parent
 	}
-	
+
 	return "", nil
 }
 
@@ -236,7 +236,7 @@ func (c *ProjectConfig) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(path, data, 0644)
 }
 
@@ -275,11 +275,11 @@ func Init(workspace, project string) (*ProjectConfig, error) {
 			CompleteOnMerge: true,
 		},
 	}
-	
+
 	if err := cfg.Save(ConfigFileName); err != nil {
 		return nil, err
 	}
-	
+
 	return cfg, nil
 }
 
@@ -287,13 +287,13 @@ func Init(workspace, project string) (*ProjectConfig, error) {
 func (c *ProjectConfig) Merge(globalWorkspace, globalProject string) (workspace, project string) {
 	workspace = globalWorkspace
 	project = globalProject
-	
+
 	if c.Workspace != "" {
 		workspace = c.Workspace
 	}
 	if c.Project != "" {
 		project = c.Project
 	}
-	
+
 	return
 }

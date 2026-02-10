@@ -50,20 +50,20 @@ type UserResponse struct {
 
 // ProjectResponse represents a project from the API (based on ProjectResource)
 type ProjectResponse struct {
-	ID          int              `json:"id"`
-	UUID        string           `json:"uuid"`
-	Slug        string           `json:"slug"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	Code        string           `json:"code"`
-	Logo        string           `json:"logo"`
-	Company     *ProjectCompany  `json:"company"`
-	Stats       ProjectStats     `json:"stats"`
-	Settings    ProjectSettings  `json:"settings"`
-	Status      ProjectStatus    `json:"status"`
-	Dates       ProjectDates     `json:"dates"`
-	Users       []UserResponse   `json:"users"`
-	CreatedAt   *DateResponse    `json:"created_at"`
+	ID          int             `json:"id"`
+	UUID        string          `json:"uuid"`
+	Slug        string          `json:"slug"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Code        string          `json:"code"`
+	Logo        string          `json:"logo"`
+	Company     *ProjectCompany `json:"company"`
+	Stats       ProjectStats    `json:"stats"`
+	Settings    ProjectSettings `json:"settings"`
+	Status      ProjectStatus   `json:"status"`
+	Dates       ProjectDates    `json:"dates"`
+	Users       []UserResponse  `json:"users"`
+	CreatedAt   *DateResponse   `json:"created_at"`
 }
 
 type ProjectCompact struct {
@@ -77,10 +77,10 @@ type CompanyCompact struct {
 }
 
 type ProjectCompany struct {
-	UUID  string `json:"uuid"`
-	Slug  string `json:"slug"`
-	Name  string `json:"name"`
-	Logo  string `json:"logo"`
+	UUID string `json:"uuid"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+	Logo string `json:"logo"`
 }
 
 type ProjectStats struct {
@@ -91,11 +91,11 @@ type ProjectStats struct {
 }
 
 type ProjectSettings struct {
-	UseTimer      bool `json:"use_timer"`
-	TaskType      bool `json:"task_type"`
-	ShowNumber    bool `json:"show_number"`
-	HasSprints    bool `json:"has_sprints"`
-	HasWiki       bool `json:"has_wiki"`
+	UseTimer       bool `json:"use_timer"`
+	TaskType       bool `json:"task_type"`
+	ShowNumber     bool `json:"show_number"`
+	HasSprints     bool `json:"has_sprints"`
+	HasWiki        bool `json:"has_wiki"`
 	HasUserStories bool `json:"has_user_stories"`
 }
 
@@ -111,19 +111,19 @@ type ProjectDates struct {
 
 // SprintResponse represents a sprint from the API (based on SprintResource)
 type SprintResponse struct {
-	ID          int            `json:"id"`
-	Code        string         `json:"code"`
-	Slug        string         `json:"slug"`
-	Title       string         `json:"title"`
-	Color       string         `json:"color"`
-	Description string         `json:"description"`
-	Duration    int            `json:"duration"`
-	Timebox     SprintTimebox  `json:"timebox"`
-	Stats       SprintStats    `json:"stats"`
-	Status      SprintStatus   `json:"status"`
+	ID          int             `json:"id"`
+	Code        string          `json:"code"`
+	Slug        string          `json:"slug"`
+	Title       string          `json:"title"`
+	Color       string          `json:"color"`
+	Description string          `json:"description"`
+	Duration    int             `json:"duration"`
+	Timebox     SprintTimebox   `json:"timebox"`
+	Stats       SprintStats     `json:"stats"`
+	Status      SprintStatus    `json:"status"`
 	Project     *ProjectCompact `json:"project"`
 	Company     *CompanyCompact `json:"company"`
-	CreatedAt   *DateResponse  `json:"created_at"`
+	CreatedAt   *DateResponse   `json:"created_at"`
 }
 
 type SprintCompact struct {
@@ -154,12 +154,12 @@ type SprintStatus struct {
 
 // TimeTrackingResponse represents a time tracking entry
 type TimeTrackingResponse struct {
-	Comment    string             `json:"comment"`
-	Time       TimeTrackingTime   `json:"time"`
-	Task       *TaskResponse      `json:"task"`
-	User       *UserResponse      `json:"user"`
-	Billed     bool               `json:"billed"`
-	IsBillable bool               `json:"is_billable"`
+	Comment    string           `json:"comment"`
+	Time       TimeTrackingTime `json:"time"`
+	Task       *TaskResponse    `json:"task"`
+	User       *UserResponse    `json:"user"`
+	Billed     bool             `json:"billed"`
+	IsBillable bool             `json:"is_billable"`
 }
 
 type TimeTrackingTime struct {

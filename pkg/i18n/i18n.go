@@ -15,10 +15,10 @@ import (
 var localeFS embed.FS
 
 var (
-	bundle     *i18n.Bundle
-	localizer  *i18n.Localizer
+	bundle      *i18n.Bundle
+	localizer   *i18n.Localizer
 	currentLang = "en"
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 )
 
 // SupportedLanguages lists all available languages

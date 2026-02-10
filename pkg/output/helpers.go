@@ -126,7 +126,7 @@ func FormatDuration(hours float64) string {
 	if hours < 0.01 {
 		return "-"
 	}
-	
+
 	totalMinutes := int(hours * 60)
 	h := totalMinutes / 60
 	m := totalMinutes % 60
@@ -145,17 +145,17 @@ func formatInt(n int) string {
 	if n < 0 {
 		return "-" + formatInt(-n)
 	}
-	
+
 	digits := []byte{}
 	if n == 0 {
 		return "0"
 	}
-	
+
 	for n > 0 {
 		digits = append([]byte{byte('0' + n%10)}, digits...)
 		n /= 10
 	}
-	
+
 	return string(digits)
 }
 

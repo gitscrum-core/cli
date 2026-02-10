@@ -147,22 +147,22 @@ func TestStandupTeam_Success(t *testing.T) {
 			response := map[string]interface{}{
 				"data": []map[string]interface{}{
 					{
-						"user_uuid":            "uuid-1",
-						"user_name":            "Alice",
-						"tasks_in_progress":    3,
+						"user_uuid":             "uuid-1",
+						"user_name":             "Alice",
+						"tasks_in_progress":     3,
 						"tasks_completed_today": 2,
 						"tasks_completed_week":  8,
-						"blocked_count":        0,
-						"hours_tracked_today":  4.5,
+						"blocked_count":         0,
+						"hours_tracked_today":   4.5,
 					},
 					{
-						"user_uuid":            "uuid-2",
-						"user_name":            "Bob",
-						"tasks_in_progress":    1,
+						"user_uuid":             "uuid-2",
+						"user_name":             "Bob",
+						"tasks_in_progress":     1,
 						"tasks_completed_today": 1,
 						"tasks_completed_week":  5,
-						"blocked_count":        1,
-						"hours_tracked_today":  3.0,
+						"blocked_count":         1,
+						"hours_tracked_today":   3.0,
 					},
 				},
 			}
@@ -182,11 +182,11 @@ func TestStandupTeam_Success(t *testing.T) {
 
 	var result struct {
 		Data []struct {
-			UserName           string  `json:"user_name"`
-			TasksInProgress    int     `json:"tasks_in_progress"`
-			TasksCompletedToday int    `json:"tasks_completed_today"`
-			BlockedCount       int     `json:"blocked_count"`
-			HoursTrackedToday  float64 `json:"hours_tracked_today"`
+			UserName            string  `json:"user_name"`
+			TasksInProgress     int     `json:"tasks_in_progress"`
+			TasksCompletedToday int     `json:"tasks_completed_today"`
+			BlockedCount        int     `json:"blocked_count"`
+			HoursTrackedToday   float64 `json:"hours_tracked_today"`
 		} `json:"data"`
 	}
 	api.DecodeResponse(resp, &result)
@@ -212,9 +212,9 @@ func TestStandupDigest_Success(t *testing.T) {
 		if strings.Contains(r.URL.Path, "/companies/standup/weekly-digest") {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
-					"total_completed":  45,
-					"total_hours":       180.5,
-					"velocity_change":   12.5,
+					"total_completed": 45,
+					"total_hours":     180.5,
+					"velocity_change": 12.5,
 					"top_contributors": []map[string]interface{}{
 						{"name": "Alice", "tasks_completed": 15},
 						{"name": "Bob", "tasks_completed": 12},

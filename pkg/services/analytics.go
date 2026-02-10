@@ -71,4 +71,3 @@ func (s *analyticsService) TeamAnalytics(period string) (*AnalyticsData, error) 
 
 	return &result.Data, nil
 }
-

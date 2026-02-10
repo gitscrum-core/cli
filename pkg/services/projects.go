@@ -7,11 +7,11 @@ import (
 // ProjectDetails represents detailed project info
 type ProjectDetails struct {
 	Project
-	TasksCount      int     `json:"tasks_count"`
-	CompletedCount  int     `json:"completed_count"`
-	MembersCount    int     `json:"members_count"`
-	Progress        float64 `json:"progress"`
-	CurrentSprint   *Sprint `json:"current_sprint"`
+	TasksCount     int     `json:"tasks_count"`
+	CompletedCount int     `json:"completed_count"`
+	MembersCount   int     `json:"members_count"`
+	Progress       float64 `json:"progress"`
+	CurrentSprint  *Sprint `json:"current_sprint"`
 }
 
 // ProjectMember represents a project team member
@@ -137,4 +137,3 @@ func (s *projectsService) ListWorkflows(slug string) ([]Status, error) {
 
 	return result.Data, nil
 }
-

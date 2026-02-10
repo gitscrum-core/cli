@@ -23,12 +23,12 @@ type StandupTask struct {
 
 // TeamMemberStatus represents a team member's standup status
 type TeamMemberStatus struct {
-	User          User    `json:"user"`
-	ActiveTasks   int     `json:"active_tasks"`
-	DoneTasks     int     `json:"done_tasks"`
-	BlockedTasks  int     `json:"blocked_tasks"`
-	TrackedHours  float64 `json:"tracked_hours"`
-	IsOnline      bool    `json:"is_online"`
+	User         User    `json:"user"`
+	ActiveTasks  int     `json:"active_tasks"`
+	DoneTasks    int     `json:"done_tasks"`
+	BlockedTasks int     `json:"blocked_tasks"`
+	TrackedHours float64 `json:"tracked_hours"`
+	IsOnline     bool    `json:"is_online"`
 }
 
 // WeeklyDigest represents weekly standup metrics

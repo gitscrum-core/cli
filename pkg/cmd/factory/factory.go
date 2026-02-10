@@ -19,21 +19,21 @@ type Factory struct {
 	OutputFormat output.Format
 
 	// Lazy-loaded dependencies
-	configOnce    sync.Once
-	configValue   *config.Config
-	configErr     error
-	
-	apiOnce       sync.Once
-	apiClient     *api.Client
-	apiErr        error
-	
-	authOnce      sync.Once
-	authToken     *auth.Token
-	authErr       error
-	
-	gitOnce       sync.Once
-	gitContext    *git.Context
-	gitErr        error
+	configOnce  sync.Once
+	configValue *config.Config
+	configErr   error
+
+	apiOnce   sync.Once
+	apiClient *api.Client
+	apiErr    error
+
+	authOnce  sync.Once
+	authToken *auth.Token
+	authErr   error
+
+	gitOnce    sync.Once
+	gitContext *git.Context
+	gitErr     error
 
 	// Services layer
 	servicesOnce  sync.Once
@@ -63,13 +63,13 @@ func (f *Factory) APIClient() (*api.Client, error) {
 			f.apiErr = err
 			return
 		}
-		
+
 		token, err := f.AuthToken()
 		if err != nil {
 			f.apiErr = err
 			return
 		}
-		
+
 		f.apiClient = api.NewClient(cfg.APIURL, token)
 	})
 	return f.apiClient, f.apiErr
@@ -189,4 +189,3 @@ func (f *Factory) Services() *services.Services {
 	})
 	return f.servicesValue
 }
-

@@ -441,7 +441,7 @@ func runSprintsView(f *factory.Factory, slug string) error {
 
 	// === CLEAN GITHUB CLI-STYLE OUTPUT ===
 	fmt.Println()
-	
+
 	// Header line
 	statusColor := pterm.FgYellow
 	switch strings.ToLower(s.Status.Title) {
@@ -450,12 +450,12 @@ func runSprintsView(f *factory.Factory, slug string) error {
 	case "done", "completed":
 		statusColor = pterm.FgBlue
 	}
-	
-	fmt.Printf("%s  %s\n", 
+
+	fmt.Printf("%s  %s\n",
 		pterm.Bold.Sprintf("%s", s.Title),
 		pterm.NewStyle(statusColor).Sprint(strings.ToUpper(s.Status.Title)))
-	fmt.Printf("%s → %s  (%dd)\n\n", 
-		getDatePart(s.Timebox.Start), 
+	fmt.Printf("%s → %s  (%dd)\n\n",
+		getDatePart(s.Timebox.Start),
 		getDatePart(s.Timebox.Finish),
 		s.Duration)
 
@@ -472,7 +472,7 @@ func runSprintsView(f *factory.Factory, slug string) error {
 	inProgress := []SprintTask{}
 	review := []SprintTask{}
 	done := []SprintTask{}
-	
+
 	for _, t := range tasks {
 		switch t.Workflow.State {
 		case 0:
@@ -503,30 +503,30 @@ func runSprintsView(f *factory.Factory, slug string) error {
 // printTaskGroup prints a group of tasks with a header
 func printTaskGroup(title string, count int, tasks []SprintTask, colorFn func(a ...interface{}) string) {
 	fmt.Printf("%s %s\n", colorFn(title), pterm.Gray(fmt.Sprintf("(%d)", count)))
-	
+
 	if len(tasks) == 0 {
 		fmt.Println(pterm.Gray("  (empty)"))
 		return
 	}
-	
+
 	for i, t := range tasks {
 		if i >= 5 {
 			fmt.Printf("  %s\n", pterm.Gray(fmt.Sprintf("... and %d more", len(tasks)-5)))
 			break
 		}
-		
+
 		// Simple format: #ref_code  title  @owner
 		owner := ""
 		if len(t.Users) > 0 {
 			owner = pterm.Gray("@" + t.Users[0].Username)
 		}
-		
+
 		title := t.Title
 		if len(title) > 50 {
 			title = title[:47] + "..."
 		}
-		
-		fmt.Printf("  %s  %s  %s\n", 
+
+		fmt.Printf("  %s  %s  %s\n",
 			pterm.Cyan(t.GetIdentifier()),
 			title,
 			owner)
@@ -554,7 +554,7 @@ func renderProgressBar3(percentage int, width int) string {
 		filled = width
 	}
 	empty := width - filled
-	
+
 	bar := pterm.Green(strings.Repeat("█", filled)) + pterm.Gray(strings.Repeat("░", empty))
 	return bar
 }
@@ -565,12 +565,12 @@ func formatKanbanTask(t SprintTask, width int) string {
 	if len(t.Users) > 0 {
 		owner = "@" + truncate(t.Users[0].Username, 8)
 	}
-	
+
 	sp := getStringValue(t.Effort)
 	if sp == "" || sp == "0" {
 		sp = "-"
 	}
-	
+
 	title := t.Title
 	maxTitle := width - 50
 	if maxTitle < 20 {
@@ -579,7 +579,7 @@ func formatKanbanTask(t SprintTask, width int) string {
 	if len(title) > maxTitle {
 		title = title[:maxTitle-3] + "..."
 	}
-	
+
 	// Format: #CODE  Title...  SP: X  @owner
 	// Uses cli_code (8 chars) as primary identifier for CLI
 	code := pterm.Cyan("#" + t.GetIdentifier())
@@ -599,10 +599,10 @@ func padToWidth(s string, width int) string {
 
 // SprintTask represents a task in a sprint
 type SprintTask struct {
-	Code     string `json:"code"`
-	RefCode  string `json:"ref_code"`
-	Slug     string `json:"slug"`
-	Title    string `json:"title"`
+	Code     string      `json:"code"`
+	RefCode  string      `json:"ref_code"`
+	Slug     string      `json:"slug"`
+	Title    string      `json:"title"`
 	Effort   interface{} `json:"effort"`
 	Priority interface{} `json:"priority"`
 	Workflow struct {
@@ -642,7 +642,7 @@ func getDatePart(d *DateResource) string {
 func renderProgressBar2(percentage int, width int) string {
 	filled := (percentage * width) / 100
 	empty := width - filled
-	
+
 	bar := ""
 	for i := 0; i < filled; i++ {
 		bar += pterm.Green("▉")
@@ -656,19 +656,19 @@ func renderProgressBar2(percentage int, width int) string {
 // renderTasksTable renders the tasks overview table
 func renderTasksTable(sprintCode string, tasks []SprintTask) {
 	title := fmt.Sprintf("Tasks Overview (%s)", sprintCode)
-	
+
 	// Build table data
 	tableData := pterm.TableData{
 		{"ID", "Title", "Owner", "Status", "Est", "Sp"},
 	}
-	
+
 	for _, t := range tasks {
 		// Get owner
 		owner := "-"
 		if len(t.Users) > 0 {
 			owner = "@" + t.Users[0].Username
 		}
-		
+
 		// Get status styled
 		status := strings.ToUpper(t.Workflow.Title)
 		if len(status) > 8 {
@@ -683,7 +683,7 @@ func renderTasksTable(sprintCode string, tasks []SprintTask) {
 		case 1: // Done
 			statusStyled = pterm.Green(status)
 		}
-		
+
 		// Get effort and story points
 		effort := getStringValue(t.Effort)
 		if effort == "" || effort == "0" {
@@ -691,13 +691,13 @@ func renderTasksTable(sprintCode string, tasks []SprintTask) {
 		} else {
 			effort = effort + "h"
 		}
-		
+
 		// Truncate title
 		taskTitle := t.Title
 		if len(taskTitle) > 32 {
 			taskTitle = taskTitle[:29] + "..."
 		}
-		
+
 		tableData = append(tableData, []string{
 			t.Code,
 			taskTitle,
@@ -707,13 +707,13 @@ func renderTasksTable(sprintCode string, tasks []SprintTask) {
 			"-",
 		})
 	}
-	
+
 	pterm.DefaultBox.
 		WithTitle(title).
 		WithTitleTopLeft().
 		WithBoxStyle(pterm.NewStyle(pterm.FgWhite)).
 		Println("")
-	
+
 	pterm.DefaultTable.
 		WithHasHeader(true).
 		WithData(tableData).
@@ -723,17 +723,17 @@ func renderTasksTable(sprintCode string, tasks []SprintTask) {
 // renderTasksTableWithWidth renders the tasks overview table with consistent width
 func renderTasksTableWithWidth(sprintCode string, tasks []SprintTask, boxWidth int) {
 	title := fmt.Sprintf("Tasks Overview (%s)", sprintCode)
-	
+
 	// Calculate dynamic column widths based on boxWidth
 	titleWidth := boxWidth - 50 // Leave room for ID, Owner, Status, Est, Sp
 	if titleWidth < 20 {
 		titleWidth = 20
 	}
-	
+
 	// Build table header with proper spacing
 	separator := strings.Repeat("─", boxWidth-6)
 	header := fmt.Sprintf("%-8s %-*s %-12s %-8s %-4s %-4s", "ID", titleWidth, "Title", "Owner", "Status", "Est", "Sp")
-	
+
 	// Build rows
 	var rows []string
 	for _, t := range tasks {
@@ -743,7 +743,7 @@ func renderTasksTableWithWidth(sprintCode string, tasks []SprintTask, boxWidth i
 			owner = "@" + t.Users[0].Username
 		}
 		owner = truncate(owner, 11)
-		
+
 		// Get status styled
 		status := t.Workflow.Title
 		if len(status) > 8 {
@@ -758,7 +758,7 @@ func renderTasksTableWithWidth(sprintCode string, tasks []SprintTask, boxWidth i
 		case 1: // Done
 			statusStyled = pterm.Green(status)
 		}
-		
+
 		// Get effort
 		effort := getStringValue(t.Effort)
 		if effort == "" || effort == "0" {
@@ -766,26 +766,26 @@ func renderTasksTableWithWidth(sprintCode string, tasks []SprintTask, boxWidth i
 		} else {
 			effort = effort + "h"
 		}
-		
+
 		// Truncate title
 		taskTitle := t.Title
 		if len(taskTitle) > titleWidth {
 			taskTitle = taskTitle[:titleWidth-3] + "..."
 		}
-		
-		row := fmt.Sprintf("%-8s %-*s %-12s %-8s %-4s %-4s", 
-			t.Code, 
-			titleWidth, taskTitle, 
+
+		row := fmt.Sprintf("%-8s %-*s %-12s %-8s %-4s %-4s",
+			t.Code,
+			titleWidth, taskTitle,
 			owner,
 			statusStyled,
 			effort,
 			"-")
 		rows = append(rows, padToWidth(row, boxWidth-4))
 	}
-	
+
 	// Build content
 	content := padToWidth(header, boxWidth-4) + "\n" + separator + "\n" + strings.Join(rows, "\n")
-	
+
 	pterm.DefaultBox.
 		WithTitle(title).
 		WithTitleTopLeft().
@@ -858,7 +858,7 @@ func getProgressColored(percentage int) string {
 func renderVisualProgress(percentage int, width int) string {
 	filled := (percentage * width) / 100
 	empty := width - filled
-	
+
 	bar := ""
 	for i := 0; i < filled; i++ {
 		bar += pterm.Green("█")

@@ -101,4 +101,3 @@ func (s *workspacesService) ListProjects(slug string) ([]Project, error) {
 
 	return result.Data, nil
 }
-

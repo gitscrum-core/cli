@@ -15,13 +15,13 @@ func TestExtractTaskCode(t *testing.T) {
 		{"feature branch with TK prefix", "feature/TK-456-add-feature", "TK-456"},
 		{"bugfix branch", "bugfix/BUG-789-handle-error", "BUG-789"},
 		{"hotfix branch", "hotfix/FIX-101-urgent-fix", "FIX-101"},
-		
+
 		// Edge cases
 		{"code at start", "GS-123-fix-bug", "GS-123"},
 		{"code at end", "fix-bug-GS-123", "GS-123"},
 		{"code with long prefix", "PROJ-12345-long-description", "PROJ-12345"},
 		{"multiple codes takes first", "GS-123-merge-TK-456", "GS-123"},
-		
+
 		// No match cases
 		{"main branch", "main", ""},
 		{"develop branch", "develop", ""},
@@ -31,10 +31,10 @@ func TestExtractTaskCode(t *testing.T) {
 		{"single letter prefix", "G-123-test", ""},
 		{"no hyphen number", "GS123-test", ""},
 		{"empty string", "", ""},
-		
+
 		// Two-letter prefix (minimum)
 		{"two letter prefix", "AB-1-test", "AB-1"},
-		
+
 		// Five-letter prefix (maximum in pattern)
 		{"five letter prefix", "ABCDE-999-test", "ABCDE-999"},
 	}
@@ -61,21 +61,21 @@ func TestParseRemoteURL(t *testing.T) {
 		{"gitlab SSH", "git@gitlab.com:owner/repo.git", "gitlab", "owner/repo"},
 		{"bitbucket SSH", "git@bitbucket.org:owner/repo.git", "bitbucket", "owner/repo"},
 		{"SSH without .git", "git@github.com:owner/repo", "github", "owner/repo"},
-		
+
 		// HTTPS URLs
 		{"github HTTPS", "https://github.com/owner/repo.git", "github", "owner/repo"},
 		{"gitlab HTTPS", "https://gitlab.com/owner/repo.git", "gitlab", "owner/repo"},
 		{"bitbucket HTTPS", "https://bitbucket.org/owner/repo.git", "bitbucket", "owner/repo"},
 		{"HTTPS without .git", "https://github.com/owner/repo", "github", "owner/repo"},
-		
+
 		// Nested repos
 		{"github nested", "git@github.com:org/team/repo.git", "github", "org/team/repo"},
 		{"gitlab nested", "https://gitlab.com/org/team/repo.git", "gitlab", "org/team/repo"},
-		
+
 		// Self-hosted
 		{"self-hosted github", "git@git.company.com:team/repo.git", "unknown", "team/repo"},
 		{"self-hosted gitlab", "https://gitlab.company.com/team/repo", "gitlab", "team/repo"},
-		
+
 		// Edge cases
 		{"empty string", "", "", ""},
 		{"invalid URL", "not-a-url", "", ""},
@@ -106,16 +106,16 @@ func TestDetectProvider(t *testing.T) {
 		{"www.gitlab.com", "gitlab"},
 		{"bitbucket.org", "bitbucket"},
 		{"www.bitbucket.org", "bitbucket"},
-		
+
 		// Enterprise/self-hosted
 		{"github.company.com", "github"},
 		{"gitlab.company.com", "gitlab"},
 		{"bitbucket.company.com", "bitbucket"},
-		
+
 		// Case insensitive
 		{"GITHUB.COM", "github"},
 		{"GitLab.Com", "gitlab"},
-		
+
 		// Unknown
 		{"git.company.com", "unknown"},
 		{"custom-git.io", "unknown"},

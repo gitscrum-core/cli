@@ -59,11 +59,11 @@ func TestRunTasksList_Success(t *testing.T) {
 		response := map[string]interface{}{
 			"data": []map[string]interface{}{
 				{
-					"uuid":                    "550e8400-e29b-41d4-a716-446655440000",
-					"code":                    "GS-123",
-					"number":                  123,
-					"title":                   "Fix login issue on mobile",
-					"config_workflow_title":   "In Progress",
+					"uuid":                  "550e8400-e29b-41d4-a716-446655440000",
+					"code":                  "GS-123",
+					"number":                123,
+					"title":                 "Fix login issue on mobile",
+					"config_workflow_title": "In Progress",
 					"users": []map[string]interface{}{
 						{"username": "johndoe"},
 					},
@@ -73,12 +73,12 @@ func TestRunTasksList_Success(t *testing.T) {
 					},
 				},
 				{
-					"uuid":                    "550e8400-e29b-41d4-a716-446655440001",
-					"code":                    "GS-124",
-					"number":                  124,
-					"title":                   "Add dark mode support",
-					"config_workflow_title":   "To Do",
-					"users":                   []map[string]interface{}{},
+					"uuid":                  "550e8400-e29b-41d4-a716-446655440001",
+					"code":                  "GS-124",
+					"number":                124,
+					"title":                 "Add dark mode support",
+					"config_workflow_title": "To Do",
+					"users":                 []map[string]interface{}{},
 					"project": map[string]interface{}{
 						"code": "GS",
 						"slug": "mobile-app",
@@ -93,7 +93,7 @@ func TestRunTasksList_Success(t *testing.T) {
 
 	// Create client manually for testing
 	client := api.NewClient(server.URL, &auth.Token{AccessToken: "test-token"})
-	
+
 	// Execute API call
 	resp, err := client.Get("/issues/my")
 	if err != nil {
@@ -150,12 +150,12 @@ func TestRunTasksList_WithProject(t *testing.T) {
 		response := map[string]interface{}{
 			"data": []map[string]interface{}{
 				{
-					"uuid":  "test-uuid",
-					"code":  "MA-1",
-					"title": "Project specific task",
+					"uuid":                  "test-uuid",
+					"code":                  "MA-1",
+					"title":                 "Project specific task",
 					"config_workflow_title": "Done",
-					"users":   []map[string]interface{}{},
-					"project": map[string]interface{}{"code": "MA"},
+					"users":                 []map[string]interface{}{},
+					"project":               map[string]interface{}{"code": "MA"},
 				},
 			},
 		}
@@ -237,7 +237,7 @@ func TestRunTasksView_Success(t *testing.T) {
 	defer server.Close()
 
 	client := api.NewClient(server.URL, &auth.Token{AccessToken: "test-token"})
-	
+
 	// First get UUID
 	resp, err := client.Get("/tasks/by-code/GS-123")
 	if err != nil {
@@ -296,7 +296,7 @@ func TestRunTasksView_Success(t *testing.T) {
 // TestRunTasksCreate_Success tests creating a task
 func TestRunTasksCreate_Success(t *testing.T) {
 	var receivedBody map[string]interface{}
-	
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("Method = %s, want POST", r.Method)
@@ -321,7 +321,7 @@ func TestRunTasksCreate_Success(t *testing.T) {
 	defer server.Close()
 
 	client := api.NewClient(server.URL, &auth.Token{AccessToken: "test-token"})
-	
+
 	body := map[string]interface{}{
 		"title":        "New feature request",
 		"description":  "Implement dark mode",
@@ -386,7 +386,7 @@ func TestRunTasksComplete_Success(t *testing.T) {
 	defer server.Close()
 
 	client := api.NewClient(server.URL, &auth.Token{AccessToken: "test-token"})
-	
+
 	// Complete task = update workflow to done
 	resp, err := client.Put("/issues/task-uuid-123", map[string]interface{}{
 		"config_workflow_slug": "done",
@@ -408,7 +408,7 @@ func TestOutputFormatting(t *testing.T) {
 	// Test JSON output
 	var jsonBuf bytes.Buffer
 	jsonFormatter := &output.JSONFormatter{Writer: &jsonBuf}
-	
+
 	err := jsonFormatter.PrintTable(headers, rows)
 	if err != nil {
 		t.Fatalf("JSON PrintTable failed: %v", err)
@@ -427,7 +427,7 @@ func TestOutputFormatting(t *testing.T) {
 	// Test quiet output
 	var quietBuf bytes.Buffer
 	quietFormatter := &output.QuietFormatter{Writer: &quietBuf}
-	
+
 	err = quietFormatter.PrintTable(headers, rows)
 	if err != nil {
 		t.Fatalf("Quiet PrintTable failed: %v", err)

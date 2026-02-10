@@ -23,19 +23,19 @@ const (
 type Formatter interface {
 	// Print outputs data to stdout
 	Print(data interface{}) error
-	
+
 	// PrintTable outputs tabular data
 	PrintTable(headers []string, rows [][]string) error
-	
+
 	// PrintSuccess prints a success message
 	PrintSuccess(msg string)
-	
+
 	// PrintError prints an error message
 	PrintError(msg string)
-	
+
 	// PrintWarning prints a warning message
 	PrintWarning(msg string)
-	
+
 	// PrintInfo prints an info message
 	PrintInfo(msg string)
 }

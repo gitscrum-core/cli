@@ -191,9 +191,9 @@ func runTasksBranches(f *factory.Factory, code string) error {
 
 	var result struct {
 		Data []struct {
-			UUID      string `json:"uuid"`
-			Name      string `json:"name"`
-			URL       string `json:"url"`
+			UUID      string            `json:"uuid"`
+			Name      string            `json:"name"`
+			URL       string            `json:"url"`
 			CreatedAt *api.DateResource `json:"created_at"`
 		} `json:"data"`
 	}

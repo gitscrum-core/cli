@@ -51,4 +51,3 @@ func (s *authService) ValidateToken() (bool, error) {
 
 	return resp.StatusCode == 200, nil
 }
-

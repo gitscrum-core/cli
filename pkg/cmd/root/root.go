@@ -46,7 +46,7 @@ var (
 // Execute runs the root command and returns exit code
 func Execute(version, commit, date string) int {
 	rootCmd := NewCmdRoot(version, commit, date)
-	
+
 	if err := rootCmd.Execute(); err != nil {
 		if cliErr, ok := err.(*clierrors.CLIError); ok {
 			cliErr.Print()
@@ -61,7 +61,7 @@ func Execute(version, commit, date string) int {
 // NewCmdRoot creates the root command
 func NewCmdRoot(version, commit, date string) *cobra.Command {
 	f := factory.New()
-	
+
 	cmd := &cobra.Command{
 		Use:   "gitscrum <command> [flags]",
 		Short: "GitScrum CLI - Project Management from your terminal",
@@ -89,14 +89,14 @@ GETTING STARTED:
 			if err := initConfig(); err != nil {
 				return err
 			}
-			
+
 			// Set output format in factory
 			if jsonOutput {
 				f.OutputFormat = output.FormatJSON
 			} else if quietMode {
 				f.OutputFormat = output.FormatQuiet
 			}
-			
+
 			return nil
 		},
 	}
@@ -235,9 +235,9 @@ EXAMPLES:
 // NewCmdStatus creates the top-level status command
 func NewCmdStatus(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
-		Short: "Show current authentication and configuration status",
-		Long:  "Show the authenticated user, configured workspace, and project.",
+		Use:     "status",
+		Short:   "Show current authentication and configuration status",
+		Long:    "Show the authenticated user, configured workspace, and project.",
 		Example: `  gitscrum status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			green := color.New(color.FgGreen)

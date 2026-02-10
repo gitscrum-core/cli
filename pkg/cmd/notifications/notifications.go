@@ -140,7 +140,6 @@ func runNotifications(f *factory.Factory, unreadOnly bool) error {
 	return nil
 }
 
-
 // NewCmdNotificationsRead marks a notification as read
 func NewCmdNotificationsRead(f *factory.Factory) *cobra.Command {
 	return &cobra.Command{

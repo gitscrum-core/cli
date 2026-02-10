@@ -152,7 +152,6 @@ func EmptyContext(resource, workspace, project, suggestion string) {
 	}
 }
 
-
 // Bullet prints a bulleted list item.
 //
 //	• item text

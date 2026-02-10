@@ -220,7 +220,7 @@ func (s *sprintsService) Stats(uuid string) (*SprintStats, error) {
 func (s *sprintsService) ListTasks(uuid string) ([]Task, error) {
 	// Use tasks endpoint with sprint filter and pagination
 	path := "/tasks?sprint_slug=" + uuid + "&per_page=100"
-	
+
 	resp, err := s.client.Get(path)
 	if err != nil {
 		return nil, err
@@ -234,4 +234,3 @@ func (s *sprintsService) ListTasks(uuid string) ([]Task, error) {
 
 	return result.Data, nil
 }
-

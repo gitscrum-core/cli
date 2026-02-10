@@ -33,7 +33,7 @@ func TestTasksService_Get_Success(t *testing.T) {
 
 func TestTasksService_Get_NotFound(t *testing.T) {
 	mock := NewMockClient()
-	mock.OnGet("/tasks/by-code/INVALID", http.StatusNotFound, 
+	mock.OnGet("/tasks/by-code/INVALID", http.StatusNotFound,
 		map[string]string{"message": "Task not found"})
 
 	svc := &tasksService{client: mock}
@@ -46,7 +46,7 @@ func TestTasksService_Get_NotFound(t *testing.T) {
 
 func TestTasksService_Get_ProRequired(t *testing.T) {
 	mock := NewMockClient()
-	mock.OnGet("/tasks/by-code/GS-123", http.StatusPaymentRequired, 
+	mock.OnGet("/tasks/by-code/GS-123", http.StatusPaymentRequired,
 		map[string]string{"message": "PRO subscription required"})
 
 	svc := &tasksService{client: mock}
@@ -59,7 +59,7 @@ func TestTasksService_Get_ProRequired(t *testing.T) {
 
 func TestTasksService_Get_Unauthorized(t *testing.T) {
 	mock := NewMockClient()
-	mock.OnGet("/tasks/by-code/GS-123", http.StatusUnauthorized, 
+	mock.OnGet("/tasks/by-code/GS-123", http.StatusUnauthorized,
 		map[string]string{"message": "Unauthorized"})
 
 	svc := &tasksService{client: mock}
@@ -115,7 +115,7 @@ func TestTasksService_List_Success(t *testing.T) {
 
 func TestTasksService_List_RateLimited(t *testing.T) {
 	mock := NewMockClient()
-	mock.OnGet("/tasks?", http.StatusTooManyRequests, 
+	mock.OnGet("/tasks?", http.StatusTooManyRequests,
 		map[string]string{"message": "Rate limit exceeded"})
 
 	svc := &tasksService{client: mock}
@@ -156,7 +156,7 @@ func TestTasksService_Create_ValidationError(t *testing.T) {
 
 func TestTasksService_Create_ServerError(t *testing.T) {
 	mock := NewMockClient()
-	mock.OnPost("/tasks", http.StatusInternalServerError, 
+	mock.OnPost("/tasks", http.StatusInternalServerError,
 		map[string]string{"message": "Internal server error"})
 
 	svc := &tasksService{client: mock}

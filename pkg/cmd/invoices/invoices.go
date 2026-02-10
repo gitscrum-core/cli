@@ -37,22 +37,22 @@ Without a subcommand, lists all invoices.`,
 
 // Invoice represents an invoice (matches CompanyInvoiceResource.php)
 type Invoice struct {
-	UUID     string  `json:"uuid"`
-	RefCode  string  `json:"ref_code"`
-	Series   string  `json:"series"`
-	Status   struct {
+	UUID    string `json:"uuid"`
+	RefCode string `json:"ref_code"`
+	Series  string `json:"series"`
+	Status  struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	} `json:"status"`
-	GrossTotal          int               `json:"gross_total"`
-	GrossTotalFormatted string            `json:"gross_total_formatted"`
-	Currency struct {
-		Symbol   string `json:"symbol"`
-		Code     string `json:"code"`
+	GrossTotal          int    `json:"gross_total"`
+	GrossTotalFormatted string `json:"gross_total_formatted"`
+	Currency            struct {
+		Symbol string `json:"symbol"`
+		Code   string `json:"code"`
 	} `json:"currency"`
 	PaymentDueAt *api.DateResource `json:"payment_due_at"`
 	PaidAt       *api.DateResource `json:"paid_at"`
-	Contact struct {
+	Contact      struct {
 		Name string `json:"name"`
 		UUID string `json:"uuid"`
 	} `json:"contact"`
