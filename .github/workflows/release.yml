@@ -44,3 +44,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Warm Go module proxy
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Warming proxy for $TAG..."
+          curl -sf "https://proxy.golang.org/github.com/gitscrum-core/cli/@v/${TAG}.info" || true
+          curl -sf "https://proxy.golang.org/github.com/gitscrum-core/cli/@v/${TAG}.mod" || true
+          sleep 10
+
+      - name: Refresh Go Report Card
+        run: |
+          echo "Triggering Go Report Card refresh..."
+          curl -sf -X POST -d "repo=github.com/gitscrum-core/cli" https://goreportcard.com/checks || true
+          echo "Go Report Card refresh triggered"
