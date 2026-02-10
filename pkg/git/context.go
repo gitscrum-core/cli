@@ -82,7 +82,8 @@ func NewContext(path string) (*Context, error) {
 // extractTaskCode extracts task code from branch name
 // The prefix is project-specific and configured in GitScrum settings
 // Examples: feature/GS-123-fix-bug -> GS-123
-//           bugfix/WEB-456-auth    -> WEB-456
+//
+//	bugfix/WEB-456-auth    -> WEB-456
 func extractTaskCode(branch string) string {
 	matches := TaskCodePattern.FindStringSubmatch(branch)
 	if len(matches) >= 3 {

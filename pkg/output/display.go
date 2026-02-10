@@ -97,7 +97,7 @@ func Alertf(format string, a ...interface{}) {
 
 // KeyValue prints an aligned key-value pair.
 //
-//	  Workspace: my-workspace
+//	Workspace: my-workspace
 func KeyValue(key, value string) {
 	keyColor.Printf("  %s: ", key)
 	valueColor.Println(value)
@@ -154,7 +154,7 @@ func EmptyContext(resource, workspace, project, suggestion string) {
 
 // Bullet prints a bulleted list item.
 //
-//	• item text
+//   - item text
 func Bullet(text string) {
 	fmt.Printf("  • %s\n", text)
 }
