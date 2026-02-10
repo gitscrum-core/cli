@@ -71,6 +71,7 @@ homebrew_casks:
     repository:
       owner: gitscrum-core
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://gitscrum.com"
     description: "GitScrum CLI - Project Management from your terminal"
 
