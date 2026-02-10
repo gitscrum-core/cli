@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/gitscrum-core/cli/releases"><img src="https://img.shields.io/badge/status-BETA-orange?style=flat-square" alt="Beta"></a>
   <a href="https://github.com/gitscrum-core/cli/releases"><img src="https://img.shields.io/github/v/release/gitscrum-core/cli?style=flat-square&color=000" alt="Release"></a>
-  <a href="https://goreportcard.com/report/github.com/gitscrum-core/cli"><img src="https://goreportcard.com/badge/github.com/gitscrum-core/cli?style=flat-square" alt="Go Report"></a>
+  <a href="https://goreportcard.com/report/github.com/gitscrum-core/cli"><img src="https://goreportcard.com/badge/github.com/gitscrum-core/cli" alt="Go Report"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-000?style=flat-square" alt="MIT License"></a>
   <a href="https://github.com/gitscrum-core/cli/actions/workflows/ci.yml"><img src="https://github.com/gitscrum-core/cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
