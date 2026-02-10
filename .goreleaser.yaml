@@ -8,6 +8,10 @@ project_name: gitscrum
 before:
   hooks:
     - go mod tidy
+    - mkdir -p completions
+    - sh -c "go run ./cmd/gitscrum completion bash > completions/gitscrum.bash"
+    - sh -c "go run ./cmd/gitscrum completion zsh > completions/_gitscrum"
+    - sh -c "go run ./cmd/gitscrum completion fish > completions/gitscrum.fish"
 
 builds:
   - id: gitscrum
