@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="https://site-assets.gitscrum.com/vscode/gitscrum-white.png" alt="GitScrum" width="160"/>
+  <img width="508" height="129" alt="image" src="https://github.com/user-attachments/assets/56204676-18a3-4e30-8b19-7048f56bc2b7" />
 </p>
 
-<h1 align="center">GitScrum CLI</h1>
+<h1 align="center">GitScrum CLI: Status follows Code ⚡</h1>
 
 <p align="center">
-  Command-line interface for GitScrum.<br/>
-  Manage projects, track time, and ship faster — without leaving your terminal.
+  Official GitScrum CLI: Git-native task management and time tracking for the terminal..<br/>
+  Git-native task management for developers who live in the terminal. Zero context switching. Automation-first. Built to keep you in the flow.
 </p>
 
 <p align="center">
@@ -17,11 +17,13 @@
   <a href="https://github.com/gitscrum-core/cli/actions/workflows/ci.yml"><img src="https://github.com/gitscrum-core/cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-<br/>
-
 ## Overview
 
 GitScrum CLI gives you full access to your [GitScrum](https://gitscrum.com) workspace from the terminal. Tasks, time tracking, sprints, analytics — everything without leaving your editor.
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/c189d98a-78a2-4f1b-b6fd-d2f6a56487b9" />
+</p>
 
 > **⚠️ BETA**: This CLI is in active development. While fully functional, you may encounter bugs or breaking changes. [Report issues](https://github.com/gitscrum-core/cli/issues) to help us improve!
 
