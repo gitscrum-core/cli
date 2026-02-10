@@ -70,10 +70,11 @@ curl -sL https://raw.githubusercontent.com/gitscrum-core/cli/main/install.sh | s
 Or install via package managers:
 
 <details>
-<summary><strong>macOS (Homebrew)</strong></summary>
+<summary><strong>macOS / Linux (Homebrew)</strong></summary>
 
 ```bash
-brew install gitscrum-core/tap/gitscrum
+brew tap gitscrum-core/homebrew-tap
+brew install gitscrum
 ```
 </details>
 
